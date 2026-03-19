@@ -1,0 +1,1830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Blitz Breaker - NFL Arcade</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Russo+One&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #111;
+            font-family: 'Russo One', sans-serif;
+            touch-action: none; /* Prevent pull-to-refresh on mobile */
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Let clicks pass through to canvas */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .hud-panel {
+            background: rgba(0, 0, 0, 0.75);
+            border-bottom: 4px solid #fff;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            text-transform: uppercase;
+        }
+        .interactive-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto; /* Catch clicks for buttons */
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(3px);
+            z-index: 10;
+        }
+        .hidden { display: none !important; }
+        
+        button {
+            background: #e53e3e; /* Red-600 */
+            color: white;
+            border: 4px solid white;
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            font-family: 'Russo One', sans-serif;
+            cursor: pointer;
+            border-radius: 8px;
+            text-transform: uppercase;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+            transition: transform 0.1s, background 0.2s;
+            pointer-events: auto;
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+        button:hover {
+            background: #c53030;
+        }
+
+        .message-text {
+            font-size: 3rem;
+            color: #fbbf24; /* Amber-400 */
+            text-shadow: 4px 4px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
+            margin-bottom: 20px;
+            text-align: center;
+            animation: pulse 1s infinite alternate;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.05); }
+        }
+
+        .team-blue { color: #60a5fa; }
+        .team-red { color: #f87171; }
+        .stat-box { text-align: center; }
+        .stat-value { font-size: 1.25rem; color: #fff;}
+        .stat-label { font-size: 0.75rem; color: #aaa; letter-spacing: 1px;}
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <!-- Heads Up Display -->
+    <div class="ui-layer" id="hud" style="display: none;">
+        <div class="hud-panel">
+            <div class="stat-box">
+                <div class="stat-label">CLOCK</div>
+                <div class="stat-value" id="timerDisplay" style="color:#fbbf24">05:00</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label" id="possessionDisplay">HOME BALL</div>
+                <div class="stat-value" id="scoreDisplay">
+                    <span class="team-blue">0</span> - <span class="team-red">0</span>
+                </div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">DOWN & DISTANCE</div>
+                <div class="stat-value" id="downDisplay" style="color:#fbbf24">1ST & 10</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">BALL ON</div>
+                <div class="stat-value" id="yardLineDisplay" style="color:#fbbf24">OWN 20</div>
+            </div>
+        </div>
+        <!-- Bottom instruction area -->
+        <div id="mobile-instruction" class="text-white text-center p-4 opacity-50 text-sm tracking-wider">
+            DRAG TO MOVE • ARROW KEYS TO RUN • E TO HANDOFF
+        </div>
+    </div>
+
+    <!-- Start / Game Over Screen -->
+    <div id="overlay-menu" class="interactive-overlay">
+        <h1 id="menu-title" class="text-5xl md:text-7xl text-white mb-2" style="text-shadow: 3px 3px 0 #000;">BLITZ<span class="text-red-500"> BREAKER</span></h1>
+        <p id="menu-subtitle" class="text-gray-300 mb-8 max-w-md text-center">Score Touchdowns, Kick PATs, and flip possession on Turnovers!</p>
+        <button id="start-btn">PLAY NOW</button>
+    </div>
+
+    <!-- In-Game State Messages (Touchdown, First Down, etc) -->
+    <div id="overlay-message" class="interactive-overlay hidden" style="background: rgba(0,0,0,0.3); pointer-events: none;">
+        <div class="message-text" id="big-message">TOUCHDOWN!</div>
+    </div>
+
+    <!-- Snap Ball Button -->
+    <div id="overlay-snap" class="interactive-overlay hidden" style="background: rgba(0,0,0,0.1);">
+        <button id="snap-btn" style="background: #2563eb; border-color: #fff;">SNAP BALL</button>
+    </div>
+
+    <!-- Kick PAT Button -->
+    <div id="overlay-kick" class="interactive-overlay hidden" style="background: rgba(0,0,0,0.1);">
+        <button id="kick-btn" style="background: #10b981; border-color: #fff;">KICK PAT</button>
+    </div>
+
+    <!-- Punt Button -->
+    <div id="overlay-punt" class="interactive-overlay hidden" style="background: rgba(0,0,0,0.1);">
+        <button id="punt-btn" style="background: #3b82f6; border-color: #fff;">PUNT BALL</button>
+    </div>
+
+    <!-- Handoff Button (Mobile/Touch) -->
+    <button id="handoff-btn" class="hidden" style="position: absolute; bottom: 20px; left: 20px; background: #ea580c; border-color: #fff; padding: 15px 25px; font-size: 1.2rem; z-index: 20; border-radius: 8px;">HANDOFF</button>
+
+    <!-- Pass Button (Mobile/Touch) -->
+    <button id="pass-btn" class="hidden" style="position: absolute; bottom: 20px; right: 20px; background: #8b5cf6; border-color: #fff; padding: 15px 25px; font-size: 1.2rem; z-index: 20; border-radius: 8px;">PASS</button>
+</div>
+
+<script>
+    /**
+     * BLITZ BREAKER - HTML5 Canvas Game Engine
+     */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // UI Elements
+    const overlayMenu = document.getElementById('overlay-menu');
+    const startBtn = document.getElementById('start-btn');
+    const hud = document.getElementById('hud');
+    const overlayMessage = document.getElementById('overlay-message');
+    const bigMessage = document.getElementById('big-message');
+    
+    const overlaySnap = document.getElementById('overlay-snap');
+    const snapBtn = document.getElementById('snap-btn');
+    const overlayKick = document.getElementById('overlay-kick');
+    const kickBtn = document.getElementById('kick-btn');
+    const overlayPunt = document.getElementById('overlay-punt');
+    const puntBtn = document.getElementById('punt-btn');
+    const passBtn = document.getElementById('pass-btn');
+    const handoffBtn = document.getElementById('handoff-btn');
+
+    // HUD Text Elements
+    const timerDisplay = document.getElementById('timerDisplay');
+    const scoreDisplay = document.getElementById('scoreDisplay');
+    const possessionDisplay = document.getElementById('possessionDisplay');
+    const downDisplay = document.getElementById('downDisplay');
+    const yardLineDisplay = document.getElementById('yardLineDisplay');
+
+    // --- GAME CONSTANTS & VARIABLES ---
+    const FIELD_WIDTH_YARDS = 53.3; 
+    const FIELD_LENGTH_YARDS = 100;
+    
+    let ppy = 10; 
+    let cameraY = 0; 
+
+    // Game States: MENU, PRE_SNAP, PLAYING, ANIMATING, FIELD_GOAL_AIMING, FIELD_GOAL_KICKED, GAME_OVER, KICKOFF_IN_AIR
+    let gameState = 'MENU'; 
+    let difficultyLevel = 1;
+
+    // Time & Football Rules State
+    let gameTimeRemaining = 300; // 5 minutes (in seconds)
+    let lastFrameTime = performance.now();
+    let timeExpired = false;
+
+    let scoreHome = 0;
+    let scoreAway = 0;
+    let possession = 'HOME'; // 'HOME' or 'AWAY'
+    let down = 1;
+    let lineOfScrimmage = 20; // Starts at own 20
+    let firstDownLine = 30;
+    
+    // Entities
+    const player = {
+        x: FIELD_WIDTH_YARDS / 2,
+        y: 20,
+        radius: 0.8, 
+        baseSpeed: 0.16, 
+        speed: 0.16, 
+        vx: 0,
+        vy: 0,
+        color: '#3b82f6' 
+    };
+
+    let defenders = [];
+    
+    // Field Goal & Kickoff minigame variables
+    let kickingMeter = { pos: 50, dir: 1, speed: 2 };
+    let kickedBall = { active: false, x: 0, y: 0, vx: 0, vy: 0, size: 1, timer: 0, startX: 0, startY: 0 };
+    let isTwoPointConversion = false;
+    let isKickoffReturn = false;
+    let isPAT = false;
+    let returners = [];
+    let kickoffTargetX = 0;
+    let kickoffTargetY = 0;
+
+    // Passing Mechanics Variables
+    let hasCrossedLOS = false;
+    let wrs = []; 
+    let oLinemen = []; 
+    let rb = { active: false, x: 0, y: 0, speed: 0, color: '' }; // Running Back
+    let cosmeticQB = null; 
+    let passObj = { active: false, x: 0, y: 0, startDist: 0, size: 1, targetWrIndex: -1 };
+
+    // Input State
+    const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, w: false, a: false, s: false, d: false, e: false };
+    const pointer = { active: false, x: 0, y: 0 }; 
+
+    // --- SOUND ENGINE (Web Audio API) ---
+    const sfx = {
+        ctx: null,
+        init() {
+            if (!this.ctx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                this.ctx = new AudioContext();
+            }
+            if (this.ctx.state === 'suspended') this.ctx.resume();
+        },
+        playOsc(freq, type, duration, vol = 0.1, slideFreq = null) {
+            if (!this.ctx) return;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+            if (slideFreq) {
+                osc.frequency.exponentialRampToValueAtTime(slideFreq, this.ctx.currentTime + duration);
+            }
+            gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start();
+            osc.stop(this.ctx.currentTime + duration);
+        },
+        playNoise(duration, vol=0.1) {
+            if (!this.ctx) return;
+            const bufferSize = this.ctx.sampleRate * duration;
+            const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = buffer;
+            const gain = this.ctx.createGain();
+            gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 1000;
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.ctx.destination);
+            noise.start();
+        },
+        whistle() {
+            this.playOsc(2000, 'sine', 0.4, 0.1);
+            setTimeout(() => this.playOsc(2200, 'sine', 0.5, 0.1), 100);
+        },
+        tackle() {
+            this.playOsc(150, 'sine', 0.3, 0.3, 50);
+            this.playNoise(0.2, 0.4); 
+        },
+        kick() {
+            this.playOsc(200, 'sine', 0.15, 0.4, 40);
+        },
+        success() { 
+            this.playOsc(440, 'square', 0.1, 0.05);
+            setTimeout(() => this.playOsc(554, 'square', 0.2, 0.05), 100);
+            setTimeout(() => this.playOsc(659, 'square', 0.4, 0.05), 200);
+        },
+        fail() { 
+            this.playOsc(300, 'sawtooth', 0.5, 0.1, 150);
+        },
+        touchdown() {
+            const notes = [440, 554, 659, 880];
+            notes.forEach((freq, i) => {
+                setTimeout(() => this.playOsc(freq, 'square', 0.5, 0.05), i * 150);
+            });
+            setTimeout(() => {
+                if(!this.ctx) return;
+                const noise = this.ctx.createBufferSource();
+                const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 2, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for(let i=0; i<buffer.length; i++) data[i] = Math.random() * 2 - 1;
+                noise.buffer = buffer;
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.value = 1000;
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.2, this.ctx.currentTime + 0.5);
+                gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 2);
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start();
+            }, 100);
+        }
+    };
+
+    // --- INITIALIZATION & RESIZING ---
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        ppy = canvas.width / FIELD_WIDTH_YARDS;
+        if (ppy > canvas.height / 30) ppy = canvas.height / 30; 
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // --- INPUT HANDLING ---
+    window.addEventListener('keydown', (e) => {
+        if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+        if (e.key === ' ' && gameState === 'PRE_SNAP') snapBall();
+        if (e.key === ' ' && gameState === 'FIELD_GOAL_AIMING') executeKick();
+        if (e.key === ' ' && gameState === 'PUNT_AIMING') executePunt();
+        if (e.key === ' ' && gameState === 'PLAYING') throwPass();
+        if ((e.key === 'e' || e.key === 'E') && gameState === 'PLAYING') handoffBall();
+    });
+    window.addEventListener('keyup', (e) => {
+        if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
+    });
+
+    function handlePointerDown(e) {
+        if (gameState !== 'PLAYING') return;
+        pointer.active = true;
+        updatePointerPos(e);
+    }
+    function handlePointerMove(e) {
+        if (!pointer.active || gameState !== 'PLAYING') return;
+        updatePointerPos(e);
+    }
+    function handlePointerUp() { pointer.active = false; }
+    function updatePointerPos(e) {
+        pointer.x = e.touches ? e.touches[0].clientX : e.clientX;
+        pointer.y = e.touches ? e.touches[0].clientY : e.clientY;
+    }
+
+    canvas.addEventListener('mousedown', handlePointerDown);
+    canvas.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('mouseup', handlePointerUp);
+    canvas.addEventListener('touchstart', handlePointerDown, {passive: false});
+    canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handlePointerMove(e); }, {passive: false});
+    window.addEventListener('touchend', handlePointerUp);
+
+    startBtn.addEventListener('click', startGame);
+    snapBtn.addEventListener('click', snapBall);
+    kickBtn.addEventListener('click', executeKick);
+    puntBtn.addEventListener('click', executePunt);
+    passBtn.addEventListener('click', throwPass);
+    handoffBtn.addEventListener('click', handoffBall);
+
+    // --- CORE GAME LOGIC ---
+
+    function startGame() {
+        sfx.init();
+        sfx.whistle();
+        
+        // Reset Game Variables
+        scoreHome = 0;
+        scoreAway = 0;
+        possession = 'HOME'; // Start with HOME receiving opening kick
+        difficultyLevel = 1;
+        gameTimeRemaining = 300;
+        timeExpired = false;
+        lastFrameTime = performance.now();
+        isTwoPointConversion = false;
+        isKickoffReturn = false;
+        isPAT = false;
+
+        // Restore Title Screen HTML in case we are coming from a Game Over
+        document.getElementById('menu-title').innerHTML = `BLITZ<span class="text-red-500"> BREAKER</span>`;
+        document.getElementById('menu-title').style.color = '#fff';
+        document.getElementById('menu-subtitle').innerText = "Score Touchdowns, Kick PATs, and flip possession on Turnovers!";
+        
+        overlayMenu.classList.add('hidden');
+        hud.style.display = 'block';
+        
+        setupKickoff(); // Begin game with a kickoff!
+    }
+
+    function resetDrive(startYard) {
+        lineOfScrimmage = startYard;
+        down = 1;
+        firstDownLine = lineOfScrimmage + 10;
+        setupPreSnap();
+    }
+
+    function executeTurnover(newLOS) {
+        possession = possession === 'HOME' ? 'AWAY' : 'HOME';
+        let teamColor = possession === 'HOME' ? '#60a5fa' : '#f87171';
+        showBigMessage(possession + ' BALL!', teamColor, () => {
+            if (timeExpired) { handleTimeExpired(); return; }
+            resetDrive(newLOS);
+        });
+    }
+
+    function executeKickoff() {
+        possession = possession === 'HOME' ? 'AWAY' : 'HOME';
+        setupKickoff();
+    }
+
+    function handleTimeExpired() {
+        gameState = 'GAME_OVER';
+        overlaySnap.classList.add('hidden');
+        overlayKick.classList.add('hidden');
+        overlayPunt.classList.add('hidden');
+        
+        sfx.whistle();
+        setTimeout(() => sfx.whistle(), 400);
+        setTimeout(() => sfx.whistle(), 800);
+        
+        let winMsg = "TIE GAME!";
+        let winColor = "#fff";
+        if (scoreHome > scoreAway) {
+            winMsg = "HOME WINS!";
+            winColor = "#60a5fa";
+        } else if (scoreAway > scoreHome) {
+            winMsg = "AWAY WINS!";
+            winColor = "#f87171";
+        }
+
+        showBigMessage("TIME'S UP!", "#fbbf24", () => {
+            hud.style.display = 'none';
+            overlayMenu.classList.remove('hidden');
+            document.getElementById('menu-title').innerHTML = winMsg;
+            document.getElementById('menu-title').style.color = winColor;
+            document.getElementById('menu-subtitle').innerText = `Final Score: Home ${scoreHome} - Away ${scoreAway}`;
+            startBtn.innerText = 'PLAY AGAIN';
+        }, 3000);
+    }
+
+    function setupKickoff() {
+        gameState = 'ANIMATING'; 
+        isKickoffReturn = true;
+        kickedBall.active = true;
+        hasCrossedLOS = false;
+        isTwoPointConversion = false; 
+        
+        const pColor = possession === 'HOME' ? '#3b82f6' : '#ef4444';
+        const olColor = possession === 'HOME' ? '#1e3a8a' : '#7f1d1d';
+        const defMain = possession === 'HOME' ? '#ef4444' : '#3b82f6';
+        
+        player.color = pColor;
+        
+        // 11-man kicking team (Opponents)
+        defenders = [];
+        for(let i=0; i<11; i++) {
+            defenders.push({
+                x: (FIELD_WIDTH_YARDS / 12) * (i + 1),
+                y: 65, // Opponent's 35 yard line
+                radius: 0.85,
+                // HARDER KICKOFF: Defenders are significantly faster 
+                speed: player.speed * (1.1 + Math.random() * 0.2),
+                color: defMain,
+                targetWrIndex: -1,
+                isDL: false, isCB: false, isSafety: false, isSpy: false, isRBCover: false
+            });
+        }
+
+        // Return blockers (Wedge format)
+        oLinemen = [];
+        // Front line of blockers (5)
+        for(let i=0; i<5; i++) oLinemen.push({x: (FIELD_WIDTH_YARDS / 6) * (i+1), y: 35, radius: 0.9, color: olColor});
+        // Mid line of blockers (4)
+        for(let i=0; i<4; i++) oLinemen.push({x: (FIELD_WIDTH_YARDS / 5) * (i+1), y: 20, radius: 0.9, color: olColor});
+
+        // 2 Deep Returners (Kickoff returners are much faster!)
+        returners = [
+            {x: FIELD_WIDTH_YARDS * 0.3, y: 5, speed: player.baseSpeed * 1.20, color: pColor},
+            {x: FIELD_WIDTH_YARDS * 0.7, y: 5, speed: player.baseSpeed * 1.20, color: pColor}
+        ];
+
+        wrs = []; // No WRs on kickoff
+        rb.active = false;
+        cosmeticQB = null;
+        passObj.active = false;
+        
+        passBtn.classList.add('hidden');
+        handoffBtn.classList.add('hidden');
+        overlaySnap.classList.add('hidden');
+        overlayKick.classList.add('hidden');
+        overlayPunt.classList.add('hidden');
+        
+        // Pick random kickoff landing spot near the endzone
+        kickoffTargetX = 10 + Math.random() * 33;
+        kickoffTargetY = -5 + Math.random() * 15; // Can land slightly deep in endzone
+        
+        kickedBall.startX = FIELD_WIDTH_YARDS / 2;
+        kickedBall.startY = 65;
+        kickedBall.x = kickedBall.startX;
+        kickedBall.y = kickedBall.startY;
+        kickedBall.timer = 0;
+        
+        updateHUD();
+        centerCamera(20); // Focus camera near the returners initially
+
+        let teamText = possession === 'HOME' ? 'HOME' : 'AWAY';
+        showBigMessage(teamText + " RECEIVES", pColor, () => {
+            if (timeExpired) { handleTimeExpired(); return; }
+            gameState = 'KICKOFF_IN_AIR';
+            sfx.whistle();
+            setTimeout(() => sfx.kick(), 500); // Thud sound right after whistle
+        });
+    }
+
+    function setupPreSnap() {
+        player.x = FIELD_WIDTH_YARDS / 2;
+        player.y = Math.max(1, lineOfScrimmage - 4); 
+        player.speed = player.baseSpeed; // Reset speed to QB speed
+        player.vx = 0;
+        player.vy = 0;
+        pointer.active = false;
+        kickedBall.active = false;
+        hasCrossedLOS = false;
+        isKickoffReturn = false;
+        
+        // Define uniform colors based on current possession
+        const pColor = possession === 'HOME' ? '#3b82f6' : '#ef4444'; 
+        const wrColor = possession === 'HOME' ? '#93c5fd' : '#fca5a5'; 
+        const teColor = possession === 'HOME' ? '#60a5fa' : '#f87171'; 
+        const olColor = possession === 'HOME' ? '#1e3a8a' : '#7f1d1d'; 
+
+        player.color = pColor;
+
+        // Calculate how many rushers there will be so we can perfectly match them with O-Linemen
+        let numLinebackers = Math.min(6, 3 + Math.floor(difficultyLevel / 2));
+        let numOL = 3 + numLinebackers; // 1 Offensive Lineman for every single DL and LB!
+        let spacing = 2.5;
+        let maxOffset = ((numOL - 1) * spacing) / 2;
+
+        wrs = [
+            { active: true, x: FIELD_WIDTH_YARDS * 0.15, y: lineOfScrimmage, speed: player.speed * 1.05, color: wrColor, type: 'WR', isBlocking: false }, 
+            // Shift the Tight End further out so they don't overlap the wider O-Line
+            { active: true, x: (FIELD_WIDTH_YARDS / 2) + maxOffset + 2.5, y: lineOfScrimmage, speed: player.speed * 1.0, color: teColor, type: 'TE', isBlocking: true, blockTimer: 60 }, 
+            { active: true, x: FIELD_WIDTH_YARDS * 0.85, y: lineOfScrimmage, speed: player.speed * 1.08, color: wrColor, type: 'WR', isBlocking: false }  
+        ];
+
+        // Dynamically spawn the matching number of linemen
+        oLinemen = [];
+        for (let i = 0; i < numOL; i++) {
+            oLinemen.push({ 
+                x: (FIELD_WIDTH_YARDS / 2) - maxOffset + (i * spacing), 
+                y: lineOfScrimmage + 0.5, 
+                radius: 0.9, 
+                color: olColor 
+            });
+        }
+
+        // Spawn the Running Back slightly offset from the QB
+        rb = { 
+            active: true, 
+            x: (FIELD_WIDTH_YARDS / 2) + 3, 
+            y: player.y, 
+            speed: player.baseSpeed * 1.06, // TINY NERF: Reduced speed boost from 1.08 to 1.06
+            color: pColor 
+        };
+
+        returners = []; // Clear kickoff returners
+        cosmeticQB = null;
+        passObj.active = false;
+        passObj.targetWrIndex = -1;
+        passBtn.classList.add('hidden');
+        handoffBtn.classList.add('hidden');
+        defenders = [];
+        
+        overlaySnap.classList.remove('hidden');
+        gameState = 'PRE_SNAP';
+        updateHUD();
+        centerCamera();
+    }
+
+    function snapBall() {
+        sfx.init();
+        sfx.whistle();
+        overlaySnap.classList.add('hidden');
+        passBtn.classList.remove('hidden');
+        handoffBtn.classList.remove('hidden');
+        gameState = 'PLAYING';
+        spawnDefenders();
+    }
+
+    function handoffBall() {
+        if (gameState !== 'PLAYING' || hasCrossedLOS || !rb.active || isKickoffReturn || rb.y > lineOfScrimmage) return;
+
+        sfx.kick(); // Thud sound for the handoff
+        cosmeticQB = { x: player.x, y: player.y };
+
+        // Transfer player control to the Running Back
+        player.x = rb.x;
+        player.y = rb.y;
+        player.speed = player.baseSpeed * 1.06; // TINY NERF: Match the new slightly reduced RB speed
+
+        rb.active = false;
+        handoffBtn.classList.add('hidden');
+        passBtn.classList.add('hidden'); // Can't pass after a handoff
+
+        showBigMessage("HANDOFF!", "#ea580c", null, 800);
+    }
+
+    function throwPass() {
+        if (isKickoffReturn) return; // No passing on kickoffs!
+
+        let activeWrs = wrs.filter(w => w.active && !w.isBlocking);
+        if (gameState !== 'PLAYING' || hasCrossedLOS || activeWrs.length === 0) return;
+        
+        gameState = 'PASS_IN_AIR';
+        passBtn.classList.add('hidden');
+        handoffBtn.classList.add('hidden');
+        sfx.playNoise(0.2, 0.1); 
+        
+        let mostOpenWrIndex = 0;
+        let bestScore = -99999;
+
+        for (let i = 0; i < wrs.length; i++) {
+            let wr = wrs[i];
+            if (!wr.active || wr.isBlocking) continue; 
+            
+            let minDefDist = 999;
+            for (let def of defenders) {
+                if (def.isCB || def.isSafety) {
+                    let dist = Math.hypot(def.x - wr.x, def.y - wr.y);
+                    if (dist < minDefDist) minDefDist = dist;
+                }
+            }
+            let throwDist = Math.hypot(wr.x - player.x, wr.y - player.y);
+            let score = (minDefDist * 15) - throwDist;
+            if (minDefDist < 2.5) score -= 500; 
+            
+            if (score > bestScore) {
+                bestScore = score;
+                mostOpenWrIndex = i;
+            }
+        }
+
+        passObj.targetWrIndex = mostOpenWrIndex;
+        let targetWR = wrs[mostOpenWrIndex];
+        targetWR.color = '#fef08a'; 
+        
+        passObj.active = true;
+        passObj.x = player.x;
+        passObj.y = player.y;
+        passObj.startDist = Math.hypot(targetWR.x - player.x, targetWR.y - player.y);
+        pointer.active = false; 
+    }
+
+    function spawnDefenders() {
+        defenders = [];
+        // Base speed adjustments to make LBs appropriately faster than the RB
+        let baseDefSpeed = player.baseSpeed * (0.85 + (difficultyLevel * 0.03)); 
+        if (baseDefSpeed > player.baseSpeed * 1.02) baseDefSpeed = player.baseSpeed * 1.02; 
+
+        // Opponent Colors
+        const defMain = possession === 'HOME' ? '#ef4444' : '#3b82f6';
+        const defDark = possession === 'HOME' ? '#7f1d1d' : '#1e3a8a';
+        const defSafety = possession === 'HOME' ? '#b91c1c' : '#1d4ed8';
+
+        const dlOffsets = [-2.5, 0, 2.5];
+        for (let offset of dlOffsets) {
+            defenders.push({
+                x: (FIELD_WIDTH_YARDS / 2) + offset,
+                y: lineOfScrimmage + 1.5,
+                radius: 0.9,
+                speed: baseDefSpeed * 0.88, // Increased initial jump off the line (was 0.85)
+                color: defDark, 
+                targetWrIndex: -1,
+                isDL: true,
+                engaged: false,
+                isRBCover: false
+            });
+        }
+
+        let numLinebackers = Math.min(6, 3 + Math.floor(difficultyLevel / 2));
+        for (let i = 0; i < numLinebackers; i++) {
+            let defX = (FIELD_WIDTH_YARDS / (numLinebackers + 1)) * (i + 1);
+            let defY = lineOfScrimmage + 4 + (Math.random() * 5); 
+            
+            // Assign one of the Linebackers to strictly man-cover the RB (80% chance)
+            let coversRB = (i === 0 && Math.random() < 0.8);
+
+            defenders.push({
+                x: defX, y: defY, radius: 0.85, 
+                // Linebackers are now a bit slower, giving the RB a slight edge
+                speed: baseDefSpeed * (0.95 + Math.random() * 0.10), 
+                color: defMain, targetWrIndex: -1,
+                isRBCover: coversRB
+            });
+        }
+
+        // Spawn QB Spy Linebacker to prevent scrambling!
+        defenders.push({
+            x: FIELD_WIDTH_YARDS / 2, 
+            y: lineOfScrimmage + 6, 
+            radius: 0.85, 
+            speed: player.speed * 1.05, 
+            color: defMain, 
+            targetWrIndex: -1, 
+            isSpy: true,
+            isRBCover: false
+        });
+
+        let blownCoverageIndex = Math.floor(Math.random() * wrs.length);
+        wrs.forEach((w, index) => {
+            // Make receivers MUCH more open!
+            let coverageMultiplier = (index === blownCoverageIndex) 
+                ? 0.50 + (Math.random() * 0.15) // Massive blown coverage (0.50x to 0.65x speed)
+                : 0.85 + (Math.random() * 0.08); // Looser standard coverage (0.85x to 0.93x speed)
+
+            defenders.push({ 
+                x: w.x, y: lineOfScrimmage + 3, radius: 0.8, speed: w.speed * coverageMultiplier, color: defMain, targetWrIndex: index, isCB: true, isRBCover: false 
+            });
+        });
+
+        let safetyDepth = Math.min(105, lineOfScrimmage + 15 + (Math.random() * 4)); 
+        let safetySpeed = player.speed * (0.92 + (difficultyLevel * 0.02)); 
+        if (safetySpeed > player.speed * 1.06) safetySpeed = player.speed * 1.06; 
+
+        defenders.push({ x: FIELD_WIDTH_YARDS * 0.25, y: safetyDepth, radius: 0.8, speed: safetySpeed, color: defSafety, isSafety: true, isRBCover: false });
+        defenders.push({ x: FIELD_WIDTH_YARDS * 0.75, y: safetyDepth, radius: 0.8, speed: safetySpeed, color: defSafety, isSafety: true, isRBCover: false });
+    }
+
+    function setupFieldGoal(isPatAttempt = true) {
+        isPAT = isPatAttempt;
+        gameState = 'FIELD_GOAL_AIMING';
+        player.x = FIELD_WIDTH_YARDS / 2;
+        
+        if (isPAT) {
+            player.y = 85; // 15 yard line for PAT
+            downDisplay.innerText = 'EXTRA POINT';
+            yardLineDisplay.innerText = 'OPP 15';
+            kickBtn.innerText = 'KICK PAT';
+        } else {
+            player.y = Math.max(1, lineOfScrimmage - 7); // Snap 7 yards back
+            downDisplay.innerText = 'FIELD GOAL';
+            let fgYard = Math.floor(player.y);
+            yardLineDisplay.innerText = fgYard > 50 ? `OPP ${100-fgYard}` : `OWN ${fgYard}`;
+            kickBtn.innerText = 'KICK FG';
+        }
+        
+        player.vx = 0; player.vy = 0;
+        defenders = []; kickedBall.active = false;
+        
+        kickingMeter.pos = Math.random() * 100;
+        kickingMeter.dir = Math.random() > 0.5 ? 1 : -1;
+        kickingMeter.speed = Math.min(7, 2.0 + (difficultyLevel * 0.4)); 
+        
+        overlayKick.classList.remove('hidden');
+        passBtn.classList.add('hidden');
+    }
+
+    function executeKick() {
+        sfx.kick();
+        overlayKick.classList.add('hidden');
+        gameState = 'FIELD_GOAL_KICKED';
+        kickedBall.active = true; kickedBall.x = player.x; kickedBall.y = player.y; kickedBall.size = 1;
+        kickedBall.vy = 0.5; 
+        kickedBall.vx = ((kickingMeter.pos - 50) / 50) * 0.3; 
+    }
+
+    function setupPunt() {
+        gameState = 'PUNT_AIMING';
+        player.x = FIELD_WIDTH_YARDS / 2;
+        player.y = Math.max(1, lineOfScrimmage - 5);
+        player.vx = 0; player.vy = 0;
+        defenders = []; wrs = []; oLinemen = []; kickedBall.active = false;
+        
+        kickingMeter.pos = Math.random() * 100;
+        kickingMeter.dir = Math.random() > 0.5 ? 1 : -1;
+        kickingMeter.speed = Math.min(8, 2.5 + (difficultyLevel * 0.5)); 
+        
+        downDisplay.innerText = '4TH DOWN PUNT';
+        overlayPunt.classList.remove('hidden');
+        passBtn.classList.add('hidden');
+    }
+
+    function executePunt() {
+        sfx.kick();
+        overlayPunt.classList.add('hidden');
+        gameState = 'PUNT_KICKED';
+        kickedBall.active = true; kickedBall.x = player.x; kickedBall.y = player.y;
+        kickedBall.size = 1; kickedBall.timer = 0;
+        kickedBall.vy = 0.65; // ~52 Yards max distance
+        kickedBall.vx = ((kickingMeter.pos - 50) / 50) * 0.5; // Wider horizontal deviation
+    }
+
+    function setupPuntReturn(catchY, catchX) {
+        possession = possession === 'HOME' ? 'AWAY' : 'HOME';
+        isKickoffReturn = true; // Use same rules as kickoff (no 1st down line, touchback on early tackle)
+        hasCrossedLOS = false;
+        isTwoPointConversion = false;
+        
+        const pColor = possession === 'HOME' ? '#3b82f6' : '#ef4444';
+        const olColor = possession === 'HOME' ? '#1e3a8a' : '#7f1d1d';
+        const defMain = possession === 'HOME' ? '#ef4444' : '#3b82f6';
+        
+        player.color = pColor;
+        player.x = catchX;
+        player.y = catchY;
+        player.vx = 0; player.vy = 0;
+        player.speed = player.baseSpeed * 1.15; // Fast returner
+        
+        // 11-man punt coverage team sprinting downfield
+        defenders = [];
+        for(let i=0; i<11; i++) {
+            defenders.push({
+                x: (FIELD_WIDTH_YARDS / 12) * (i + 1),
+                y: catchY + 20 + Math.random() * 10,
+                radius: 0.85,
+                speed: player.baseSpeed * (0.95 + Math.random()*0.15),
+                color: defMain,
+                targetWrIndex: -1,
+                isDL: false, isCB: false, isSafety: false, isSpy: false, isRBCover: false
+            });
+        }
+
+        // Return blockers (Punt return wall)
+        oLinemen = [];
+        for(let i=0; i<6; i++) {
+            oLinemen.push({
+                x: (FIELD_WIDTH_YARDS / 7) * (i+1), 
+                y: catchY + 10 + Math.random() * 5, 
+                radius: 0.9, color: olColor
+            });
+        }
+
+        returners = []; wrs = []; rb.active = false; cosmeticQB = null; passObj.active = false;
+        passBtn.classList.add('hidden'); handoffBtn.classList.add('hidden');
+        overlaySnap.classList.add('hidden'); overlayKick.classList.add('hidden'); overlayPunt.classList.add('hidden');
+        kickedBall.active = false;
+        
+        updateHUD();
+        
+        // Snap camera to the catch location instantly
+        let targetCameraY = catchY - ((canvas.height - (canvas.height * 0.75)) / ppy);
+        cameraY = targetCameraY; 
+
+        let teamText = possession === 'HOME' ? 'HOME' : 'AWAY';
+        showBigMessage("PUNT RETURN!", pColor, () => {
+            if (timeExpired) { handleTimeExpired(); return; }
+            gameState = 'PLAYING';
+            sfx.whistle();
+        });
+    }
+
+    function handleKickResult(isGood) {
+        gameState = 'ANIMATING';
+        if (isGood) {
+            sfx.success();
+            let points = isPAT ? 1 : 3;
+            if (possession === 'HOME') scoreHome += points; else scoreAway += points;
+            updateHUD();
+            showBigMessage("IT'S GOOD!", '#34d399', () => { 
+                if (timeExpired) { handleTimeExpired(); return; }
+                executeKickoff(); 
+            });
+        } else {
+            sfx.fail();
+            showBigMessage("NO GOOD!", '#ef4444', () => { 
+                if (timeExpired) { handleTimeExpired(); return; }
+                if (isPAT) {
+                    executeKickoff(); 
+                } else {
+                    // Missed FG Turns over at spot of the kick (or 20 yard line minimum)
+                    let newLOS = 100 - player.y; 
+                    if (newLOS < 20) newLOS = 20; 
+                    if (newLOS > 99) newLOS = 99;
+                    executeTurnover(newLOS);
+                }
+            });
+        }
+    }
+
+    function update() {
+        if (gameState === 'FIELD_GOAL_AIMING' || gameState === 'PUNT_AIMING') {
+            kickingMeter.pos += kickingMeter.speed * kickingMeter.dir;
+            if (kickingMeter.pos >= 100) { kickingMeter.pos = 100; kickingMeter.dir = -1; }
+            if (kickingMeter.pos <= 0) { kickingMeter.pos = 0; kickingMeter.dir = 1; }
+            centerCamera(); return;
+        }
+
+        if (gameState === 'KICKOFF_IN_AIR') {
+            kickedBall.timer++;
+            let t = kickedBall.timer / 100; // ~1.6 sec hangtime
+            if (t > 1) t = 1;
+
+            kickedBall.x = kickedBall.startX + (kickoffTargetX - kickedBall.startX) * t;
+            kickedBall.y = kickedBall.startY + (kickoffTargetY - kickedBall.startY) * t;
+            kickedBall.size = 1 + Math.sin(t * Math.PI) * 2; 
+
+            // HARDER KICKOFF: Kicking team sprints downfield much faster while ball is in air
+            for(let def of defenders) def.y -= def.speed * 1.4;
+
+            // Returners track the ball's destination
+            for(let r of returners) {
+                let dx = kickoffTargetX - r.x;
+                let dy = kickoffTargetY - r.y;
+                let dist = Math.hypot(dx, dy);
+                if (dist > 0.5) { 
+                    r.x += (dx/dist) * r.speed;
+                    r.y += (dy/dist) * r.speed;
+                }
+            }
+
+            if (kickedBall.timer >= 100) {
+                sfx.kick(); // Thud catch
+                
+                // --- Smart Selection: Who caught it? ---
+                let d1 = Math.hypot(returners[0].x - kickoffTargetX, returners[0].y - kickoffTargetY);
+                let d2 = Math.hypot(returners[1].x - kickoffTargetX, returners[1].y - kickoffTargetY);
+                
+                let catcher = d1 < d2 ? returners[0] : returners[1];
+                let blocker = d1 < d2 ? returners[1] : returners[0];
+
+                // Give control to catcher
+                player.x = catcher.x;
+                player.y = catcher.y;
+                player.vx = 0; player.vy = 0;
+                
+                // MAKE THE KICKOFF RETURNER FASTER!
+                player.speed = player.baseSpeed * 1.20; 
+                
+                // Add the other returner as a lead blocker!
+                oLinemen.push({x: blocker.x, y: blocker.y, radius: 0.9, color: player.color});
+                returners = []; 
+                
+                kickedBall.active = false;
+                gameState = 'PLAYING';
+            }
+            centerCamera(kickedBall.y); 
+            return;
+        }
+
+        if (gameState === 'PUNT_KICKED') {
+            kickedBall.x += kickedBall.vx; kickedBall.y += kickedBall.vy; kickedBall.timer++;
+            kickedBall.size = 1 - Math.sin((kickedBall.timer / 80) * Math.PI) * 0.5; 
+            
+            centerCamera(kickedBall.y); 
+
+            // Check out of bounds or if ball lands (timer finishes)
+            if (kickedBall.x < 0 || kickedBall.x > FIELD_WIDTH_YARDS || kickedBall.timer >= 80) {
+                gameState = 'ANIMATING';
+                sfx.whistle();
+                
+                let puntDist = kickedBall.timer * 0.65;
+                let landY = player.y + puntDist;
+                let newLOS = 100 - landY;
+                
+                if (kickedBall.x < 0 || kickedBall.x > FIELD_WIDTH_YARDS) {
+                    showBigMessage("OUT OF BOUNDS!", '#fbbf24', () => {
+                        if (timeExpired) { handleTimeExpired(); return; }
+                        if (newLOS < 1) newLOS = 20; // Touchback if kicked out of bounds in endzone
+                        executeTurnover(newLOS);
+                    });
+                } else if (newLOS < 1) {
+                    showBigMessage("TOUCHBACK!", '#fbbf24', () => { 
+                        if (timeExpired) { handleTimeExpired(); return; }
+                        executeTurnover(20); 
+                    });
+                } else {
+                    let catchX = FIELD_WIDTH_YARDS - kickedBall.x; // Invert X for the receiving team
+                    showBigMessage("PUNT CAUGHT!", '#3b82f6', () => { 
+                        if (timeExpired) { handleTimeExpired(); return; }
+                        setupPuntReturn(newLOS, catchX); 
+                    });
+                }
+            }
+            return;
+        }
+
+        if (gameState === 'FIELD_GOAL_KICKED') {
+            kickedBall.x += kickedBall.vx; kickedBall.y += kickedBall.vy;
+            kickedBall.size -= 0.003; if (kickedBall.size < 0.4) kickedBall.size = 0.4;
+            if (kickedBall.y >= 110) {
+                if (kickedBall.x > 23.57 && kickedBall.x < 29.73) handleKickResult(true);
+                else handleKickResult(false);
+            }
+            centerCamera(kickedBall.y); return;
+        }
+
+        if (gameState === 'PLAYING' || gameState === 'PASS_IN_AIR') {
+            // Reset targeted flags for blocking distribution
+            for (let def of defenders) def.targetedByBlocker = false;
+
+            // Running back runs a short flat route/checkdown and stays close
+            if (rb.active) {
+                if (rb.y < lineOfScrimmage + 1.5) {
+                    rb.x += 0.05; 
+                    rb.y += rb.speed * 0.4;
+                } else {
+                    rb.x += 0.01; // Just hover as a short option
+                }
+                rb.x = Math.max(1, Math.min(FIELD_WIDTH_YARDS - 1, rb.x));
+            }
+
+            for (let w of wrs) {
+                if (!w.active) continue;
+                if (w.type === 'TE' && w.blockTimer > 0) {
+                    w.blockTimer--; w.isBlocking = true;
+                    let nearestDef = null; let minDist = 999;
+                    for (let def of defenders) {
+                        // TE blocks any rusher (DL or LB) that hasn't been picked up. Ignore Spy and RBCover LB!
+                        if (!def.isCB && !def.isSafety && !def.isSpy && !def.isRBCover && !def.targetedByBlocker) {
+                            let d = Math.hypot(def.x - w.x, def.y - w.y);
+                            if (d < minDist) { minDist = d; nearestDef = def; }
+                        }
+                    }
+                    // Fallback
+                    if (!nearestDef) {
+                        minDist = 999;
+                        for (let def of defenders) {
+                            if (!def.isCB && !def.isSafety && !def.isSpy && !def.isRBCover) {
+                                let d = Math.hypot(def.x - w.x, def.y - w.y);
+                                if (d < minDist) { minDist = d; nearestDef = def; }
+                            }
+                        }
+                    }
+                    if (nearestDef) {
+                        nearestDef.targetedByBlocker = true; // Claim this block
+                        if (minDist > 1.2 && minDist < 3.0) {
+                            w.x += (nearestDef.x - w.x) * 0.1; w.y += (nearestDef.y - w.y) * 0.1;
+                        } else if (minDist <= 1.2) nearestDef.engaged = true; 
+                    }
+                } else {
+                    w.isBlocking = false; w.y += w.speed; 
+                }
+                w.x = Math.max(1, Math.min(FIELD_WIDTH_YARDS - 1, w.x));
+                w.y = Math.min(108, w.y); 
+            }
+        }
+
+        if (gameState === 'PASS_IN_AIR') {
+            let targetWR = wrs[passObj.targetWrIndex];
+            const dx = targetWR.x - passObj.x; const dy = targetWR.y - passObj.y;
+            // Faster bullet passes
+            const dist = Math.hypot(dx, dy); const passSpeed = player.speed * 5;
+
+            for (let def of defenders) {
+                let dxDef = targetWR.x - def.x; let dyDef = targetWR.y - def.y;
+                let distDef = Math.hypot(dxDef, dyDef);
+                if (distDef > 0) {
+                    // Defenders react and move 40% slower while the ball is in the air
+                    def.x += (dxDef / distDef) * (def.speed * 0.6); 
+                    def.y += (dyDef / distDef) * (def.speed * 0.6);
+                }
+            }
+
+            if (dist < passSpeed) {
+                let brokenUp = false;
+                for (let def of defenders) {
+                    if (def.isCB || def.isSafety) {
+                        // Shrank the deflection radius so they have to be right on top of the receiver
+                        if (Math.hypot(def.x - targetWR.x, def.y - targetWR.y) < def.radius - 0.2) {
+                            brokenUp = true; break;
+                        }
+                    }
+                }
+                if (brokenUp) { handleIncompletePass("PASS BROKEN UP!"); return; }
+
+                sfx.kick();
+                cosmeticQB = { x: player.x, y: player.y };
+                player.x = targetWR.x; player.y = targetWR.y;
+                player.vx = 0; player.vy = targetWR.speed;
+                for (let w of wrs) w.active = false;
+                passObj.active = false; gameState = 'PLAYING';
+                
+                for (let def of defenders) { def.targetWrIndex = -1; def.isCB = false; }
+            } else {
+                passObj.x += (dx / dist) * passSpeed; passObj.y += (dy / dist) * passSpeed;
+                const progress = 1 - (dist / passObj.startDist);
+                passObj.size = 1 + Math.sin(progress * Math.PI) * 1.5;
+
+                if (passObj.size < 1.2 && dist > 2.0) {
+                    for (let def of defenders) {
+                        // Smaller interception hitbox
+                        if (Math.hypot(def.x - passObj.x, def.y - passObj.y) < def.radius * 0.7) {
+                            if (def.isCB || def.isSafety) {
+                                handleIncompletePass("PASS DEFLECTED!"); return;
+                            } else {
+                                sfx.fail();
+                                showBigMessage("INTERCEPTED!", "#ef4444", () => {
+                                    if (timeExpired) { handleTimeExpired(); return; }
+                                    if (isTwoPointConversion) {
+                                        isTwoPointConversion = false;
+                                        executeTurnover(20);
+                                        return;
+                                    }
+                                    let newLOS = 100 - passObj.y;
+                                    if (newLOS < 1) newLOS = 20; // Touchback
+                                    if (newLOS > 99) newLOS = 99;
+                                    executeTurnover(newLOS);
+                                });
+                                return;
+                            }
+                        }
+                    }
+                }
+                if (passObj.y > 110) { handleIncompletePass("INCOMPLETE"); return; }
+            }
+            centerCamera(passObj.y); return; 
+        }
+
+        if (gameState !== 'PLAYING') return;
+
+        let moveX = 0; let moveY = 0;
+        if (keys.ArrowUp || keys.w) moveY = 1; if (keys.ArrowDown || keys.s) moveY = -1;
+        if (keys.ArrowLeft || keys.a) moveX = -1; if (keys.ArrowRight || keys.d) moveX = 1;
+
+        if (pointer.active) {
+            const screenPlayerX = (player.x - (FIELD_WIDTH_YARDS/2)) * ppy + (canvas.width/2);
+            const screenPlayerY = getScreenY(player.y);
+            const dx = pointer.x - screenPlayerX; const dy = pointer.y - screenPlayerY;
+            const distance = Math.hypot(dx, dy);
+            if (distance > 10) { moveX = dx / distance; moveY = -dy / distance; }
+        }
+
+        if (moveX !== 0 && moveY !== 0 && !pointer.active) {
+            const length = Math.hypot(moveX, moveY); moveX /= length; moveY /= length;
+        }
+
+        player.vx = moveX * player.speed; player.vy = moveY * player.speed;
+        player.x += player.vx; player.y += player.vy;
+        player.x = Math.max(player.radius, Math.min(FIELD_WIDTH_YARDS - player.radius, player.x));
+        player.y = Math.max(0, player.y);
+
+        if (player.y > lineOfScrimmage + 0.5 && !hasCrossedLOS) {
+            hasCrossedLOS = true; 
+            passBtn.classList.add('hidden');
+            handoffBtn.classList.add('hidden');
+        }
+
+        for (let ol of oLinemen) {
+            let nearestRusher = null; let minDist = 999;
+            for (let def of defenders) {
+                // OL intercepts ANY rusher (DL or LB) that hasn't been picked up yet. Ignore Spy and RBCover!
+                if (!def.isCB && !def.isSafety && !def.isSpy && !def.isRBCover && !def.targetedByBlocker) {
+                    let d = Math.hypot(def.x - ol.x, def.y - ol.y);
+                    if (d < minDist) { minDist = d; nearestRusher = def; }
+                }
+            }
+            // Fallback if all are targeted
+            if (!nearestRusher) {
+                minDist = 999;
+                for (let def of defenders) {
+                    if (!def.isCB && !def.isSafety && !def.isSpy && !def.isRBCover) {
+                        let d = Math.hypot(def.x - ol.x, def.y - ol.y);
+                        if (d < minDist) { minDist = d; nearestRusher = def; }
+                    }
+                }
+            }
+
+            if (nearestRusher) {
+                nearestRusher.targetedByBlocker = true; // Claim this block
+                if (minDist > 1.2) {
+                    ol.x += (nearestRusher.x - ol.x) * 0.15; 
+                    ol.y += (nearestRusher.y - ol.y) * 0.15;
+                } else nearestRusher.engaged = true; 
+            }
+        }
+
+        for (let def of defenders) {
+            // Check if the defender is stunned from a broken tackle
+            if (def.stunTimer > 0) {
+                def.stunTimer--;
+                continue; // Skip AI movement and tackle checks while stunned
+            }
+
+            let currentSpeed = def.speed;
+            if (def.engaged) {
+                currentSpeed *= 0.20; // Push the pocket back faster while engaged (was 0.15)
+                // HARDER KICKOFF: Special teams players shed blocks extremely fast
+                let shedChance = isKickoffReturn ? 0.15 : 0.075; // Increased shed chance from 6% to 7.5%
+                if (Math.random() < shedChance) def.engaged = false; 
+            }
+
+            // Linebacker shadowing the Running Back in man coverage
+            if (def.isRBCover && rb.active && !hasCrossedLOS) {
+                def.x += (rb.x - def.x) * 0.15;
+                def.y += ((rb.y + 1.5) - def.y) * 0.15; // Hover tight just beyond the RB
+                
+                // Add a little realistic jitter
+                if (Math.hypot(rb.x - def.x, rb.y - def.y) < 2.0) {
+                    def.x += (Math.random() - 0.5) * 0.1;
+                }
+                continue; 
+            }
+
+            // QB Spy Logic
+            if (def.isSpy) {
+                let isOutsidePocket = Math.abs(player.x - (FIELD_WIDTH_YARDS / 2)) > 8; 
+                if (!hasCrossedLOS && !isOutsidePocket) {
+                    let targetX = player.x;
+                    let targetY = lineOfScrimmage + 6;
+                    const dx = targetX - def.x; 
+                    const dy = targetY - def.y;
+                    const dist = Math.hypot(dx, dy);
+                    
+                    if (dist > 0) {
+                        def.x += (dx / dist) * currentSpeed; 
+                        def.y += (dy / dist) * currentSpeed;
+                    }
+                    continue; 
+                }
+            }
+
+            if (def.isCB && def.targetWrIndex !== -1 && wrs[def.targetWrIndex] && wrs[def.targetWrIndex].active) {
+                let assignedWR = wrs[def.targetWrIndex];
+                if (assignedWR.isBlocking) {
+                    def.x += (assignedWR.x - def.x) * 0.1; def.y += (assignedWR.y + 4 - def.y) * 0.1; 
+                } else {
+                    def.x += (assignedWR.x - def.x) * 0.15; def.y += def.speed; 
+                    if (Math.hypot(assignedWR.x - def.x, assignedWR.y - def.y) < 1.0) def.x += (Math.random() - 0.5) * 0.2;
+                }
+                continue; 
+            }
+
+            let targetX = player.x; let targetY = player.y;
+            let targetVx = player.vx; let targetVy = player.vy;
+
+            if (def.isSafety) {
+                if (!hasCrossedLOS) {
+                    let deepestY = lineOfScrimmage;
+                    let threatX = def.x;
+                    for (let w of wrs) {
+                        if (w.active) {
+                            let isLeftSafety = def.x < FIELD_WIDTH_YARDS / 2;
+                            let isLeftWR = w.x < FIELD_WIDTH_YARDS / 2;
+                            
+                            if (isLeftSafety === isLeftWR && w.y > deepestY) {
+                                deepestY = w.y;
+                                threatX = w.x;
+                            }
+                        }
+                    }
+                    targetX = threatX;
+                    targetY = Math.min(108, deepestY + 10); 
+                    targetVx = 0; 
+                    targetVy = 0;
+                } else {
+                    const distToTarget = Math.hypot(targetX - def.x, targetY - def.y);
+                    const lookAhead = Math.min(25, distToTarget * 2); 
+                    targetX += targetVx * lookAhead; targetY += targetVy * lookAhead;
+                }
+            }
+
+            const dx = targetX - def.x; const dy = targetY - def.y;
+            const dist = Math.hypot(dx, dy);
+
+            if (dist > 0) {
+                def.x += (dx / dist) * currentSpeed; def.y += (dy / dist) * currentSpeed;
+            }
+
+            const actualDist = Math.hypot(player.x - def.x, player.y - def.y);
+            if (actualDist < (player.radius + def.radius) * 0.95) {
+                let evasionRoll = Math.random();
+                
+                // 25% Chance for a Juke (Defender overcommits and completely misses)
+                if (evasionRoll < 0.25) {
+                    def.stunTimer = 60; // Stunned longer than a broken tackle (~1 second)
+                    // Push defender away to visually simulate whiffing the tackle
+                    def.x += (def.x - player.x) * 2;
+                    def.y += (def.y - player.y) * 2;
+                    sfx.playOsc(800, 'sine', 0.15, 0.1, 300); // Quick "swoosh" sound
+                    continue; 
+                }
+                // 25% Chance to break the tackle (Total 50% evasion chance)
+                else if (evasionRoll < 0.50) {
+                    def.stunTimer = 45; // Stun the defender for 45 frames (~0.75 seconds)
+                    sfx.playNoise(0.1, 0.3); // Quick thud sound
+                    continue; // Skip the actual tackle logic
+                } else {
+                    // 15% Chance to Fumble upon being successfully tackled
+                    if (Math.random() < 0.15) {
+                        handleFumble();
+                    } else {
+                        handleTackle(); 
+                    }
+                    return; 
+                }
+            }
+        }
+
+        if (player.y >= 100) { handleTouchdown(); return; }
+        centerCamera();
+    }
+
+    function handleIncompletePass(msg) {
+        gameState = 'ANIMATING';
+        sfx.fail();
+        showBigMessage(msg, "#fbbf24", () => {
+            if (timeExpired) { handleTimeExpired(); return; }
+            if (isTwoPointConversion) {
+                isTwoPointConversion = false;
+                showBigMessage("CONVERSION FAILED!", "#ef4444", () => {
+                    if (timeExpired) { handleTimeExpired(); return; }
+                    executeKickoff();
+                });
+                return;
+            }
+            down++;
+            if (down === 4) {
+                let distance = Math.ceil(firstDownLine - lineOfScrimmage);
+                if (lineOfScrimmage >= 50) showBigMessage("4TH DOWN - FIELD GOAL", "#fbbf24", () => { if(timeExpired){handleTimeExpired();return;} setupFieldGoal(false);});
+                else if (distance >= 5) showBigMessage("4TH DOWN - PUNTING", "#fbbf24", () => { if(timeExpired){handleTimeExpired();return;} setupPunt();});
+                else showBigMessage("4TH DOWN - GOING FOR IT!", "#fbbf24", () => { if(timeExpired){handleTimeExpired();return;} setupPreSnap();});
+            } else if (down > 4) {
+                showBigMessage('TURNOVER ON DOWNS', '#ef4444', () => {
+                    if (timeExpired) { handleTimeExpired(); return; }
+                    let newLOS = 100 - lineOfScrimmage;
+                    if(newLOS > 99) newLOS = 99;
+                    executeTurnover(newLOS);
+                });
+            } else { setupPreSnap(); }
+        });
+    }
+
+    function centerCamera(focusY = null) {
+        const desiredScreenY = canvas.height * 0.75;
+        let targetY = focusY !== null ? focusY : player.y;
+        let targetCameraY = targetY - ((canvas.height - desiredScreenY) / ppy);
+        
+        if (gameState === 'PRE_SNAP' || gameState === 'PUNT_AIMING' || gameState === 'FIELD_GOAL_AIMING' || gameState === 'ANIMATING') cameraY = targetCameraY; 
+        else cameraY += (targetCameraY - cameraY) * 0.1; 
+
+        // Update camera clamps to allow full view of end zones
+        const visibleYards = canvas.height / ppy;
+        if (cameraY < -15) cameraY = -15; // Allows viewing 15 yards behind goal line
+        if (cameraY + visibleYards > 115) cameraY = 115 - visibleYards; // View 15 yards past top goal line
+    }
+
+    function handleFumble() {
+        gameState = 'ANIMATING';
+        pointer.active = false;
+        sfx.tackle();
+        setTimeout(() => sfx.fail(), 400); // Fail sound
+        
+        let forwardProgress = Math.max(lineOfScrimmage, player.y);
+        
+        // --- Special logic for Kickoff Return fumbles ---
+        if (isKickoffReturn) {
+            isKickoffReturn = false;
+            forwardProgress = player.y;
+            if (forwardProgress < 1) forwardProgress = 20; // Touchback if fumbled in endzone
+        } else if (player.y < lineOfScrimmage) {
+            forwardProgress = Math.max(1, player.y);
+        }
+
+        lineOfScrimmage = forwardProgress;
+
+        if (isTwoPointConversion) {
+            isTwoPointConversion = false;
+            showBigMessage('FUMBLE!', '#ef4444', () => {
+                if (timeExpired) { handleTimeExpired(); return; }
+                executeKickoff();
+            });
+            return;
+        }
+
+        showBigMessage('FUMBLE!', '#ef4444', () => {
+            if (timeExpired) { handleTimeExpired(); return; }
+            let newLOS = 100 - lineOfScrimmage;
+            if (newLOS > 99) newLOS = 99;
+            if (newLOS < 1) newLOS = 20;
+            executeTurnover(newLOS);
+        });
+    }
+
+    function handleTackle() {
+        gameState = 'ANIMATING';
+        pointer.active = false;
+        sfx.tackle();
+        
+        let forwardProgress = Math.max(lineOfScrimmage, player.y);
+        
+        // --- Special logic for Kickoff Return tackles ---
+        if (isKickoffReturn) {
+            isKickoffReturn = false;
+            forwardProgress = player.y;
+            if (forwardProgress < 1) forwardProgress = 20; // Touchback if tackled in endzone
+            
+            lineOfScrimmage = forwardProgress;
+            down = 1;
+            firstDownLine = lineOfScrimmage + 10;
+            showBigMessage('TACKLED!', '#fbbf24', () => {
+                if (timeExpired) { handleTimeExpired(); return; }
+                setupPreSnap();
+            });
+            return;
+        }
+        // ------------------------------------------------
+
+        if (player.y < lineOfScrimmage) forwardProgress = Math.max(1, player.y);
+
+        const yardsGained = forwardProgress - lineOfScrimmage;
+        lineOfScrimmage = forwardProgress;
+
+        if (isTwoPointConversion) {
+            isTwoPointConversion = false;
+            setTimeout(() => sfx.fail(), 400);
+            showBigMessage('CONVERSION FAILED!', '#ef4444', () => {
+                if (timeExpired) { handleTimeExpired(); return; }
+                executeKickoff();
+            });
+            return;
+        }
+
+        if (lineOfScrimmage >= firstDownLine) {
+            setTimeout(() => sfx.success(), 400); 
+            down = 1; firstDownLine = lineOfScrimmage + 10;
+            showBigMessage('FIRST DOWN!', '#34d399', () => {
+                if (timeExpired) { handleTimeExpired(); return; }
+                setupPreSnap();
+            });
+        } else {
+            down++;
+            if (down === 4) {
+                let distance = Math.ceil(firstDownLine - lineOfScrimmage);
+                if (lineOfScrimmage >= 50) showBigMessage('TACKLED!', '#fbbf24', () => { 
+                    if (timeExpired) { handleTimeExpired(); return; }
+                    showBigMessage('4TH DOWN - FIELD GOAL', '#fbbf24', () => setupFieldGoal(false)); 
+                });
+                else if (distance >= 5) showBigMessage('TACKLED!', '#fbbf24', () => { 
+                    if (timeExpired) { handleTimeExpired(); return; }
+                    showBigMessage('4TH DOWN - PUNTING', '#fbbf24', () => setupPunt()); 
+                });
+                else showBigMessage('TACKLED!', '#fbbf24', () => { 
+                    if (timeExpired) { handleTimeExpired(); return; }
+                    showBigMessage('4TH DOWN - GOING FOR IT!', '#fbbf24', () => setupPreSnap()); 
+                });
+            } else if (down > 4) {
+                setTimeout(() => sfx.fail(), 400);
+                showBigMessage('TURNOVER ON DOWNS', '#ef4444', () => {
+                    if (timeExpired) { handleTimeExpired(); return; }
+                    let newLOS = 100 - lineOfScrimmage;
+                    if(newLOS > 99) newLOS = 99;
+                    executeTurnover(newLOS);
+                });
+            } else {
+                showBigMessage('TACKLED!', '#fbbf24', () => {
+                    if (timeExpired) { handleTimeExpired(); return; }
+                    setupPreSnap();
+                });
+            }
+        }
+    }
+
+    function handleTouchdown() {
+        gameState = 'ANIMATING';
+        pointer.active = false;
+        sfx.touchdown();
+        isKickoffReturn = false; // Reset if they returned a kickoff for a TD!
+        
+        // Handle successful 2-point attempt
+        if (isTwoPointConversion) {
+            if (possession === 'HOME') scoreHome += 2; else scoreAway += 2;
+            updateHUD();
+            showBigMessage('2-PT GOOD!', '#34d399', () => {
+                if (timeExpired) { handleTimeExpired(); return; }
+                isTwoPointConversion = false;
+                executeKickoff();
+            });
+            return;
+        }
+
+        // Standard touchdown
+        if (possession === 'HOME') scoreHome += 6; else scoreAway += 6;
+        difficultyLevel++;
+        updateHUD();
+
+        let myScore = possession === 'HOME' ? scoreHome : scoreAway;
+        let oppScore = possession === 'HOME' ? scoreAway : scoreHome;
+        let diff = oppScore - myScore;
+        
+        // Go for 2 if trailing by 8 or more points before the TD (which is a diff of >= 2 after the TD) in the final minute
+        let goingForTwo = (gameTimeRemaining <= 60 && diff >= 2);
+
+        showBigMessage('TOUCHDOWN!', possession === 'HOME' ? '#60a5fa' : '#f87171', () => {
+            if (timeExpired) { handleTimeExpired(); return; }
+            
+            if (goingForTwo) {
+                showBigMessage('GOING FOR 2!', '#fbbf24', () => {
+                    setupTwoPointConversion();
+                });
+            } else {
+                setupFieldGoal(true);
+            }
+        });
+    }
+
+    function setupTwoPointConversion() {
+        isTwoPointConversion = true;
+        lineOfScrimmage = 98; // 2-yard line
+        down = 1;
+        firstDownLine = 100;
+        setupPreSnap();
+    }
+
+    function showBigMessage(text, color, callback, delay = 1500) {
+        bigMessage.innerText = text;
+        bigMessage.style.color = color;
+        overlayMessage.classList.remove('hidden');
+        setTimeout(() => { overlayMessage.classList.add('hidden'); if (callback) callback(); }, delay);
+    }
+
+    function updateHUD() {
+        scoreDisplay.innerHTML = `<span class="team-blue">${scoreHome}</span> - <span class="team-red">${scoreAway}</span>`;
+        possessionDisplay.innerText = possession + ' BALL';
+        possessionDisplay.style.color = possession === 'HOME' ? '#60a5fa' : '#f87171';
+        
+        if (gameState === 'FIELD_GOAL_AIMING' || gameState === 'FIELD_GOAL_KICKED' || gameState === 'PUNT_AIMING' || gameState === 'PUNT_KICKED') return;
+
+        if (isKickoffReturn) {
+            downDisplay.innerText = `RETURN`;
+            yardLineDisplay.innerText = `RECEIVING`;
+            return;
+        }
+
+        if (isTwoPointConversion) {
+            downDisplay.innerText = `2-PT CONVERSION`;
+            yardLineDisplay.innerText = `OPP 2`;
+            return;
+        }
+
+        let downSuffix = 'TH';
+        if (down === 1) downSuffix = 'ST';
+        else if (down === 2) downSuffix = 'ND';
+        else if (down === 3) downSuffix = 'RD';
+        
+        let distance = Math.ceil(firstDownLine - lineOfScrimmage);
+        let distText = distance;
+        if (firstDownLine >= 100) distText = 'GOAL';
+        else if (distance <= 0) distText = 'INCHES'; 
+
+        downDisplay.innerText = `${down}${downSuffix} & ${distText}`;
+
+        let yardText = '';
+        let currentYardInt = Math.floor(lineOfScrimmage);
+        if (currentYardInt === 50) yardText = '50';
+        else if (currentYardInt < 50) yardText = `OWN ${currentYardInt}`;
+        else yardText = `OPP ${100 - currentYardInt}`;
+        
+        yardLineDisplay.innerText = yardText;
+    }
+
+    // --- DRAWING FUNCTIONS ---
+
+    function getScreenY(yardLine) { return canvas.height - ((yardLine - cameraY) * ppy); }
+    function getScreenX(fieldX) {
+        const fieldPixelWidth = FIELD_WIDTH_YARDS * ppy;
+        return ((canvas.width - fieldPixelWidth) / 2) + (fieldX * ppy);
+    }
+
+    function drawField() {
+        ctx.fillStyle = '#166534'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const startYard = Math.floor(cameraY); const endYard = Math.ceil(cameraY + (canvas.height / ppy));
+        const leftSideline = getScreenX(0); const rightSideline = getScreenX(FIELD_WIDTH_YARDS);
+        
+        ctx.fillStyle = '#064e3b'; 
+        ctx.fillRect(0, 0, leftSideline, canvas.height); ctx.fillRect(rightSideline, 0, canvas.width - rightSideline, canvas.height);
+
+        ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        
+        for (let y = startYard; y <= endYard; y++) {
+            if (y < 0 || y > 100) continue; 
+            const screenY = getScreenY(y);
+            if (y % 5 === 0) {
+                ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(leftSideline, screenY); ctx.lineTo(rightSideline, screenY); ctx.stroke();
+                if (y % 10 === 0 && y > 0 && y < 100) {
+                    let displayNum = y > 50 ? 100 - y : y;
+                    ctx.font = `bold ${ppy * 1.5}px 'Russo One', sans-serif`;
+                    ctx.save(); ctx.translate(leftSideline + (ppy * 4), screenY); ctx.rotate(-Math.PI/2); ctx.fillText(displayNum, 0, 0); ctx.restore();
+                    ctx.save(); ctx.translate(rightSideline - (ppy * 4), screenY); ctx.rotate(Math.PI/2); ctx.fillText(displayNum, 0, 0); ctx.restore();
+                }
+            } else {
+                ctx.lineWidth = 1; const hashWidth = ppy * 0.5;
+                const leftHash = getScreenX(FIELD_WIDTH_YARDS / 2 - 3); const rightHash = getScreenX(FIELD_WIDTH_YARDS / 2 + 3);
+                ctx.beginPath();
+                ctx.moveTo(leftHash - hashWidth, screenY); ctx.lineTo(leftHash + hashWidth, screenY);
+                ctx.moveTo(rightHash - hashWidth, screenY); ctx.lineTo(rightHash + hashWidth, screenY); ctx.stroke();
+            }
+        }
+
+        // Bottom Endzone (Own Endzone)
+        if (cameraY <= 0) {
+            const ezTop = getScreenY(0);
+            const ezBottom = getScreenY(-10); // Endzone is 10 yards deep
+
+            ctx.fillStyle = possession === 'HOME' ? '#1e3a8a' : '#7f1d1d'; 
+            ctx.fillRect(leftSideline, ezTop, rightSideline - leftSideline, ezBottom - ezTop);
+            
+            // Draw turf behind the endzone padding
+            if (ezBottom < canvas.height) {
+                ctx.fillStyle = '#166534';
+                ctx.fillRect(leftSideline, ezBottom, rightSideline - leftSideline, canvas.height - ezBottom);
+            }
+
+            ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.font = `bold ${ppy * 4}px 'Russo One', sans-serif`;
+            let txt = possession === 'HOME' ? 'HOME' : 'AWAY';
+            ctx.fillText(txt, canvas.width/2, ezTop + (ppy*5));
+        }
+        
+        // Top Endzone (Opponent Endzone)
+        if (cameraY + (canvas.height/ppy) >= 100) {
+            const ezBottom = getScreenY(100); const ezTop = getScreenY(110); 
+            ctx.fillStyle = possession === 'HOME' ? '#7f1d1d' : '#1e3a8a'; 
+            ctx.fillRect(leftSideline, Math.max(0, ezTop), rightSideline - leftSideline, ezBottom - Math.max(0, ezTop));
+            
+            if (ezTop > 0) { ctx.fillStyle = '#166534'; ctx.fillRect(leftSideline, 0, rightSideline - leftSideline, ezTop); }
+            if (ezBottom > 0) {
+                ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.font = `bold ${ppy * 4}px 'Russo One', sans-serif`;
+                let txt = possession === 'HOME' ? 'AWAY' : 'HOME';
+                ctx.fillText(txt, canvas.width/2, ezBottom - (ppy*5));
+            }
+        }
+
+        if (gameState === 'PLAYING' || gameState === 'PRE_SNAP' || gameState === 'ANIMATING') {
+            if (!isKickoffReturn) {
+                const losY = getScreenY(lineOfScrimmage);
+                if (losY > 0 && losY < canvas.height) {
+                    ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 4;
+                    ctx.beginPath(); ctx.moveTo(leftSideline, losY); ctx.lineTo(rightSideline, losY); ctx.stroke();
+                }
+                const fdY = getScreenY(firstDownLine);
+                if (fdY > 0 && fdY < canvas.height && firstDownLine <= 100) {
+                    ctx.strokeStyle = '#facc15'; ctx.lineWidth = 4;
+                    ctx.beginPath(); ctx.moveTo(leftSideline, fdY); ctx.lineTo(rightSideline, fdY); ctx.stroke();
+                }
+            }
+        }
+
+        // Goalposts
+        if (cameraY > 50) {
+            const postY = getScreenY(110);
+            if (postY > -100 && postY < canvas.height + 100) {
+                const leftX = getScreenX(23.57); const rightX = getScreenX(29.73);
+                ctx.strokeStyle = '#eab308'; ctx.lineWidth = ppy * 0.4; ctx.lineCap = 'round';
+                
+                const centerX = getScreenX(FIELD_WIDTH_YARDS/2);
+                ctx.beginPath(); ctx.moveTo(centerX, postY); ctx.lineTo(centerX, postY + ppy * 3); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(leftX, postY); ctx.lineTo(rightX, postY); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(leftX, postY); ctx.lineTo(leftX, postY - ppy * 8); 
+                ctx.moveTo(rightX, postY); ctx.lineTo(rightX, postY - ppy * 8); ctx.stroke();
+            }
+        }
+    }
+
+    function drawEntities() {
+        if (gameState === 'MENU') return;
+
+        if (cosmeticQB) {
+            const cqScreenX = getScreenX(cosmeticQB.x); const cqScreenY = getScreenY(cosmeticQB.y); const pRadiusPx = player.radius * ppy;
+            ctx.beginPath(); ctx.arc(cqScreenX, cqScreenY, pRadiusPx, 0, Math.PI * 2);
+            ctx.fillStyle = player.color; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+            ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fill();
+        }
+
+        // Draw Running Back
+        if (rb.active) {
+            const rbScreenX = getScreenX(rb.x); const rbScreenY = getScreenY(rb.y); const pRadiusPx = player.radius * ppy;
+            ctx.beginPath(); ctx.arc(rbScreenX, rbScreenY, pRadiusPx, 0, Math.PI * 2);
+            ctx.fillStyle = rb.color; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+        }
+
+        // Draw Kickoff Returners waiting for the ball
+        for (let r of returners) {
+            const rScreenX = getScreenX(r.x); const rScreenY = getScreenY(r.y); const pRadiusPx = player.radius * ppy;
+            ctx.beginPath(); ctx.arc(rScreenX, rScreenY, pRadiusPx, 0, Math.PI * 2);
+            ctx.fillStyle = r.color; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+        }
+
+        for (let w of wrs) {
+            if (w.active) {
+                const wrScreenX = getScreenX(w.x); const wrScreenY = getScreenY(w.y); const pRadiusPx = player.radius * ppy;
+                ctx.beginPath(); ctx.arc(wrScreenX, wrScreenY, pRadiusPx, 0, Math.PI * 2);
+                ctx.fillStyle = w.color; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+            }
+        }
+
+        for (let ol of oLinemen) {
+            const olScreenX = getScreenX(ol.x); const olScreenY = getScreenY(ol.y); const olRadiusPx = ol.radius * ppy;
+            ctx.beginPath(); ctx.arc(olScreenX, olScreenY, olRadiusPx, 0, Math.PI * 2);
+            ctx.fillStyle = ol.color; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+        }
+
+        // Do not draw the active player if the ball is still in the air during kickoff
+        if (gameState !== 'KICKOFF_IN_AIR') {
+            const pScreenX = getScreenX(player.x); const pScreenY = getScreenY(player.y); const pRadiusPx = player.radius * ppy;
+
+            ctx.beginPath(); ctx.arc(pScreenX, pScreenY, pRadiusPx, 0, Math.PI * 2);
+            ctx.fillStyle = player.color; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+
+            if (!kickedBall.active && gameState !== 'FIELD_GOAL_AIMING' && gameState !== 'PUNT_AIMING' && gameState !== 'PASS_IN_AIR') {
+                ctx.beginPath(); ctx.ellipse(pScreenX + pRadiusPx*0.4, pScreenY - pRadiusPx*0.2, pRadiusPx*0.5, pRadiusPx*0.3, Math.PI/4, 0, Math.PI*2);
+                ctx.fillStyle = '#8b4513'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+            }
+        }
+
+        if (gameState === 'PASS_IN_AIR' && passObj.active) {
+            const bScreenX = getScreenX(passObj.x); const bScreenY = getScreenY(passObj.y);
+            const bRadiusPx = (player.radius * 0.6) * ppy * passObj.size; 
+            ctx.beginPath(); ctx.ellipse(bScreenX, bScreenY, bRadiusPx, bRadiusPx*0.6, Math.PI/4, 0, Math.PI*2);
+            ctx.fillStyle = '#8b4513'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(bScreenX - bRadiusPx*0.5, bScreenY); ctx.lineTo(bScreenX + bRadiusPx*0.5, bScreenY); ctx.stroke();
+        }
+
+        // Draw ball for Kicks and Kickoffs
+        if ((gameState === 'FIELD_GOAL_KICKED' || gameState === 'PUNT_KICKED' || gameState === 'KICKOFF_IN_AIR') && kickedBall.active) {
+            const bScreenX = getScreenX(kickedBall.x); const bScreenY = getScreenY(kickedBall.y);
+            const bRadiusPx = (player.radius * 0.6) * ppy * kickedBall.size; 
+            ctx.beginPath(); ctx.ellipse(bScreenX, bScreenY, bRadiusPx, bRadiusPx*0.6, 0, 0, Math.PI*2);
+            ctx.fillStyle = '#8b4513'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(bScreenX - bRadiusPx*0.5, bScreenY); ctx.lineTo(bScreenX + bRadiusPx*0.5, bScreenY); ctx.stroke();
+        }
+
+        if (gameState === 'FIELD_GOAL_AIMING' || gameState === 'PUNT_AIMING') {
+            const meterWidth = ppy * 16; const meterHeight = ppy * 1.5;
+            const meterX = getScreenX(FIELD_WIDTH_YARDS/2) - meterWidth/2; const meterY = getScreenY(player.y) - ppy * 5; 
+            ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(meterX, meterY, meterWidth, meterHeight);
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(meterX, meterY, meterWidth, meterHeight);
+            const goodZoneW = meterWidth * 0.2; const goodZoneX = meterX + (meterWidth/2) - (goodZoneW/2);
+            ctx.fillStyle = '#10b981'; ctx.fillRect(goodZoneX, meterY, goodZoneW, meterHeight);
+            const cursorX = meterX + (kickingMeter.pos / 100) * meterWidth;
+            ctx.fillStyle = '#fbbf24'; ctx.fillRect(cursorX - 2, meterY - 4, 4, meterHeight + 8);
+        }
+
+        for (let def of defenders) {
+            const dScreenX = getScreenX(def.x); const dScreenY = getScreenY(def.y); const dRadiusPx = def.radius * ppy;
+            ctx.beginPath(); ctx.arc(dScreenX, dScreenY, dRadiusPx, 0, Math.PI * 2);
+            ctx.fillStyle = def.stunTimer > 0 ? '#9ca3af' : def.color; // Gray out if stunned (broken tackle)
+            ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#000000'; ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(dScreenX - dRadiusPx*0.4, dScreenY - dRadiusPx*0.2); ctx.lineTo(dScreenX + dRadiusPx*0.4, dScreenY + dRadiusPx*0.2);
+            ctx.moveTo(dScreenX + dRadiusPx*0.4, dScreenY - dRadiusPx*0.2); ctx.lineTo(dScreenX - dRadiusPx*0.4, dScreenY + dRadiusPx*0.2);
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
+        }
+    }
+
+    function gameLoop(currentTime) {
+        // Calculate Delta Time for the timer
+        const dt = (currentTime - lastFrameTime) / 1000;
+        lastFrameTime = currentTime;
+
+        // Run the clock during gameplay (Pause during animations and menus so you don't lose time watching messages!)
+        const isClockRunning = gameState !== 'MENU' && gameState !== 'GAME_OVER' && gameState !== 'ANIMATING';
+
+        if (isClockRunning && !timeExpired) {
+            gameTimeRemaining -= dt;
+            if (gameTimeRemaining <= 0) {
+                gameTimeRemaining = 0;
+                timeExpired = true;
+            }
+        }
+        
+        // Update Timer Text
+        if (gameState !== 'MENU' && gameState !== 'GAME_OVER') {
+            let minutes = Math.floor(gameTimeRemaining / 60);
+            let seconds = Math.floor(gameTimeRemaining % 60).toString().padStart(2, '0');
+            timerDisplay.innerText = `${minutes}:${seconds}`;
+        }
+
+        // Catch edge-case if they are just standing completely still aiming or in pre-snap when time runs out
+        if (timeExpired && (gameState === 'PRE_SNAP' || gameState === 'FIELD_GOAL_AIMING' || gameState === 'PUNT_AIMING')) {
+            handleTimeExpired();
+            return; 
+        }
+
+        update();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawField();
+        drawEntities();
+        requestAnimationFrame(gameLoop);
+    }
+
+    // Start loop with timestamp
+    requestAnimationFrame((timestamp) => {
+        lastFrameTime = timestamp;
+        gameLoop(timestamp);
+    });
+
+</script>
+</body>
+</html>
