@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Big Fish Eat Small Fish</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0f4c75;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none; /* Prevent default touch actions like scrolling */
+        }
+        
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        #score-board {
+            padding: 20px;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 76, 117, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            transition: opacity 0.3s;
+        }
+
+        .overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .overlay h1 {
+            color: white;
+            font-size: 48px;
+            margin-bottom: 10px;
+            text-shadow: 0 4px 8px rgba(0,0,0,0.5);
+            text-align: center;
+        }
+
+        .overlay p {
+            color: #bbe1fa;
+            font-size: 18px;
+            margin-bottom: 30px;
+            text-align: center;
+            max-width: 80%;
+        }
+
+        button {
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #0f4c75;
+            background-color: #3282b8;
+            background: linear-gradient(to bottom, #bbe1fa, #3282b8);
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0,0,0,0.4);
+        }
+
+        button:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        #final-score {
+            color: #ffb703;
+            font-size: 32px;
+            margin-bottom: 20px;
+            font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div id="score-board">
+            <div>Score: <span id="scoreVal">0</span></div>
+            <div>Size: <span id="sizeVal">10</span></div>
+        </div>
+    </div>
+
+    <!-- Start / Game Over Screen -->
+    <div id="menuOverlay" class="overlay">
+        <h1 id="menuTitle">Ocean Frenzy</h1>
+        <p id="menuSubtitle">Eat fish smaller than you to grow. Avoid bigger fish!</p>
+        <div id="final-score" style="display: none;">Score: 0</div>
+        <button id="startBtn">Play Game</button>
+    </div>
+
+    <script>
+        window.onload = function() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            const scoreEl = document.getElementById('scoreVal');
+            const sizeEl = document.getElementById('sizeVal');
+            const menuOverlay = document.getElementById('menuOverlay');
+            const startBtn = document.getElementById('startBtn');
+            const menuTitle = document.getElementById('menuTitle');
+            const menuSubtitle = document.getElementById('menuSubtitle');
+            const finalScoreEl = document.getElementById('final-score');
+
+            let width, height;
+            let animationId;
+            let isPlaying = false;
+            let score = 0;
+
+            // Input tracking
+            const mouse = { x: 0, y: 0 };
+
+            // Game Objects
+            let player;
+            let enemies = [];
+            let bubbles = [];
+
+            // Colors for random fish
+            const fishColors = [
+                '#ff5722', '#e91e63', '#9c27b0', '#673ab7', 
+                '#3f51b5', '#00bcd4', '#009688', '#4caf50', 
+                '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107'
+            ];
+
+            function resize() {
+                width = window.innerWidth;
+                height = window.innerHeight;
+                canvas.width = width;
+                canvas.height = height;
+                if (!isPlaying && !player) {
+                    mouse.x = width / 2;
+                    mouse.y = height / 2;
+                }
+            }
+
+            window.addEventListener('resize', resize);
+            resize();
+
+            // Input Listeners
+            canvas.addEventListener('mousemove', (e) => {
+                mouse.x = e.clientX;
+                mouse.y = e.clientY;
+            });
+
+            canvas.addEventListener('touchmove', (e) => {
+                mouse.x = e.touches[0].clientX;
+                mouse.y = e.touches[0].clientY;
+            }, { passive: false });
+
+            canvas.addEventListener('touchstart', (e) => {
+                mouse.x = e.touches[0].clientX;
+                mouse.y = e.touches[0].clientY;
+            }, { passive: false });
+
+            class Player {
+                constructor() {
+                    this.x = width / 2;
+                    this.y = height / 2;
+                    this.targetX = width / 2;
+                    this.targetY = height / 2;
+                    this.baseRadius = 15;
+                    this.radius = this.baseRadius;
+                    this.color = '#ff9800'; // distinct orange player
+                    this.isFacingLeft = false;
+                    this.speed = 0.1; // interpolation factor
+                }
+
+                update() {
+                    // Smooth movement towards mouse
+                    let dx = mouse.x - this.x;
+                    let dy = mouse.y - this.y;
+                    
+                    this.x += dx * this.speed;
+                    this.y += dy * this.speed;
+
+                    // Determine facing direction
+                    if (dx < -1) this.isFacingLeft = true;
+                    if (dx > 1) this.isFacingLeft = false;
+
+                    // Keep in bounds
+                    this.x = Math.max(this.radius, Math.min(width - this.radius, this.x));
+                    this.y = Math.max(this.radius, Math.min(height - this.radius, this.y));
+                }
+
+                grow(amount) {
+                    // Area-based growth feels more natural than linear radius growth
+                    const currentArea = Math.PI * this.radius * this.radius;
+                    const addedArea = Math.PI * amount * amount * 0.1; // Digesting yields 10% of their mass
+                    const newArea = currentArea + addedArea;
+                    this.radius = Math.sqrt(newArea / Math.PI);
+                    
+                    // Update UI
+                    sizeEl.innerText = Math.floor(this.radius);
+                }
+
+                draw(ctx) {
+                    drawFish(ctx, this.x, this.y, this.radius, this.color, this.isFacingLeft, false);
+                }
+            }
+
+            class Enemy {
+                constructor() {
+                    this.isFacingLeft = Math.random() > 0.5;
+                    
+                    // Determine size relative to player (mostly edible, some dangerous)
+                    const sizeMultiplier = Math.random() > 0.75 
+                        ? (1.2 + Math.random() * 1.5) // Dangerous (bigger)
+                        : (0.3 + Math.random() * 0.6); // Edible (smaller)
+                    
+                    this.radius = player.radius * sizeMultiplier;
+
+                    // Starting position (off screen)
+                    if (this.isFacingLeft) {
+                        this.x = width + this.radius + 10;
+                    } else {
+                        this.x = -this.radius - 10;
+                    }
+                    
+                    this.y = Math.random() * (height - this.radius * 2) + this.radius;
+                    
+                    // Speed inversely proportional to size
+                    const baseSpeed = 1 + (20 / this.radius);
+                    this.vx = (this.isFacingLeft ? -1 : 1) * (baseSpeed + Math.random() * 2);
+                    this.vy = (Math.random() - 0.5) * 0.5; // slight vertical drift
+                    
+                    this.color = fishColors[Math.floor(Math.random() * fishColors.length)];
+                    this.markedForDeletion = false;
+                }
+
+                update() {
+                    this.x += this.vx;
+                    this.y += this.vy;
+
+                    // Delete if far off screen
+                    if ((this.isFacingLeft && this.x < -this.radius * 2) || 
+                        (!this.isFacingLeft && this.x > width + this.radius * 2)) {
+                        this.markedForDeletion = true;
+                    }
+                }
+
+                draw(ctx) {
+                    const isDangerous = this.radius > player.radius;
+                    drawFish(ctx, this.x, this.y, this.radius, this.color, this.isFacingLeft, isDangerous);
+                }
+            }
+
+            class Bubble {
+                constructor() {
+                    this.x = Math.random() * width;
+                    this.y = height + Math.random() * 100;
+                    this.radius = Math.random() * 5 + 2;
+                    this.speed = Math.random() * 1 + 0.5;
+                    this.wobble = Math.random() * Math.PI * 2;
+                }
+                
+                update() {
+                    this.y -= this.speed;
+                    this.x += Math.sin(this.wobble) * 0.5;
+                    this.wobble += 0.05;
+                    
+                    if (this.y < -10) {
+                        this.y = height + 10;
+                        this.x = Math.random() * width;
+                    }
+                }
+                
+                draw(ctx) {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                    ctx.stroke();
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                    ctx.fill();
+                }
+            }
+
+            // Reusable fish drawing function
+            function drawFish(ctx, x, y, radius, color, isFacingLeft, isDangerous) {
+                ctx.save();
+                ctx.translate(x, y);
+                if (isFacingLeft) ctx.scale(-1, 1);
+
+                // Body shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                ctx.beginPath();
+                ctx.ellipse(0, radius*0.2, radius, radius * 0.6, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Tail
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.moveTo(-radius * 0.7, 0);
+                ctx.lineTo(-radius * 1.6, -radius * 0.6);
+                ctx.lineTo(-radius * 1.5, 0);
+                ctx.lineTo(-radius * 1.6, radius * 0.6);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Fin (Top & Bottom)
+                ctx.beginPath();
+                ctx.moveTo(0, -radius * 0.5);
+                ctx.lineTo(-radius * 0.5, -radius * 0.9);
+                ctx.lineTo(-radius * 0.2, -radius * 0.5);
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(0, radius * 0.5);
+                ctx.lineTo(-radius * 0.4, radius * 0.8);
+                ctx.lineTo(-radius * 0.2, radius * 0.5);
+                ctx.fill();
+
+                // Body
+                ctx.beginPath();
+                ctx.ellipse(0, 0, radius, radius * 0.6, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Add a border for better definition
+                ctx.lineWidth = radius * 0.05;
+                ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+                ctx.stroke();
+
+                // Eye
+                const eyeX = radius * 0.5;
+                const eyeY = -radius * 0.15;
+                const eyeRad = radius * 0.18;
+                
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(eyeX, eyeY, eyeRad, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Pupil (red if dangerous, black otherwise)
+                ctx.fillStyle = isDangerous ? '#d32f2f' : '#111';
+                ctx.beginPath();
+                ctx.arc(eyeX + eyeRad*0.3, eyeY, eyeRad * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Angry eyebrow if dangerous
+                if (isDangerous) {
+                    ctx.strokeStyle = '#111';
+                    ctx.lineWidth = radius * 0.08;
+                    ctx.beginPath();
+                    ctx.moveTo(eyeX - eyeRad, eyeY - eyeRad*0.8);
+                    ctx.lineTo(eyeX + eyeRad, eyeY - eyeRad*0.3);
+                    ctx.stroke();
+                }
+
+                // Mouth
+                ctx.beginPath();
+                ctx.moveTo(radius * 0.8, radius * 0.2);
+                ctx.quadraticCurveTo(radius, radius * 0.3, radius * 0.8, radius * 0.4);
+                ctx.stroke();
+
+                ctx.restore();
+            }
+
+            function initGame() {
+                player = new Player();
+                enemies = [];
+                bubbles = [];
+                score = 0;
+                scoreEl.innerText = score;
+                sizeEl.innerText = Math.floor(player.radius);
+                
+                // Set initial mouse pos to center
+                mouse.x = width / 2;
+                mouse.y = height / 2;
+
+                // Create bubbles
+                for (let i = 0; i < 30; i++) {
+                    bubbles.push(new Bubble());
+                }
+
+                menuOverlay.classList.add('hidden');
+                isPlaying = true;
+                
+                // Clear any previous loop and start fresh
+                if(animationId) cancelAnimationFrame(animationId);
+                gameLoop();
+            }
+
+            function gameOver() {
+                isPlaying = false;
+                menuTitle.innerText = "Game Over!";
+                menuSubtitle.innerText = "You became someone else's dinner.";
+                finalScoreEl.innerText = `Final Score: ${score}`;
+                finalScoreEl.style.display = 'block';
+                startBtn.innerText = "Play Again";
+                menuOverlay.classList.remove('hidden');
+            }
+
+            // Spawn Timer
+            let frameCount = 0;
+
+            function gameLoop() {
+                if (!isPlaying) return;
+
+                // Background gradient
+                let gradient = ctx.createLinearGradient(0, 0, 0, height);
+                gradient.addColorStop(0, '#0a81ab');
+                gradient.addColorStop(1, '#0f4c75');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, width, height);
+
+                // Update & Draw Bubbles
+                bubbles.forEach(bubble => {
+                    bubble.update();
+                    bubble.draw(ctx);
+                });
+
+                // Spawn Enemies
+                frameCount++;
+                const spawnRate = Math.max(20, 60 - Math.floor(score / 500)); // Gets slightly faster over time
+                if (frameCount % spawnRate === 0) {
+                    enemies.push(new Enemy());
+                }
+
+                // Update & Draw Player
+                player.update();
+                player.draw(ctx);
+
+                // Update, Draw, and Collide Enemies
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    let enemy = enemies[i];
+                    enemy.update();
+                    enemy.draw(ctx);
+
+                    // Collision detection (Circle-based)
+                    const dx = player.x - enemy.x;
+                    const dy = player.y - enemy.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    // Collision threshold (slightly smaller than actual radii for better feel)
+                    if (distance < (player.radius + enemy.radius) * 0.8) {
+                        if (player.radius > enemy.radius) {
+                            // Eat fish
+                            player.grow(enemy.radius);
+                            score += Math.floor(enemy.radius);
+                            scoreEl.innerText = score;
+                            enemies.splice(i, 1);
+                            
+                            // Visual feedback (small pop effect could be added here)
+                        } else {
+                            // Eaten by fish
+                            gameOver();
+                        }
+                    } else if (enemy.markedForDeletion) {
+                        enemies.splice(i, 1);
+                    }
+                }
+
+                if (isPlaying) {
+                    animationId = requestAnimationFrame(gameLoop);
+                }
+            }
+
+            // Event listener for Start button
+            startBtn.addEventListener('click', initGame);
+
+            // Initial background drawing for the menu
+            resize();
+            ctx.fillStyle = '#0f4c75';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        };
+    </script>
+</body>
+</html>
