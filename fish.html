@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Big Fish Eat Small Fish</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #001f3f; /* Deep ocean blue */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none; /* Prevent browser zooming/scrolling on touch */
+        }
+
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .hud {
+            padding: 20px;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        #screens {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 20, 40, 0.85);
+            color: white;
+            z-index: 10;
+            text-align: center;
+            flex-direction: column;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            color: #4dc3ff;
+            text-shadow: 0 0 10px #0088cc;
+        }
+
+        p {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            max-width: 600px;
+            line-height: 1.5;
+        }
+
+        button {
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+            background: #0088cc;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: transform 0.2s, background 0.2s;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        button:hover {
+            background: #00aaff;
+            transform: scale(1.05);
+        }
+        
+        button:active {
+            transform: scale(0.95);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Responsive scaling for mobile */
+        @media (max-width: 600px) {
+            h1 { font-size: 2rem; }
+            p { font-size: 1rem; padding: 0 20px; }
+            .hud { font-size: 18px; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div class="hud">
+            <div id="sizeDisplay">Size: 5 / 99999</div>
+            <div id="messageDisplay">Eat smaller fish!</div>
+        </div>
+    </div>
+
+    <div id="screens">
+        <h1 id="screenTitle">BIG FISH</h1>
+        <p id="screenText">You are a small fish in a big ocean.<br><br>Move your mouse or touch the screen to swim.<br>Eat fish that are SMALLER than you.<br>Avoid fish that are BIGGER than you.<br><br>Reach size 99999 to win. The fish around you won't move, so plan your path!</p>
+        <button id="actionBtn">Play</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const screens = document.getElementById('screens');
+        const screenTitle = document.getElementById('screenTitle');
+        const screenText = document.getElementById('screenText');
+        const actionBtn = document.getElementById('actionBtn');
+        const sizeDisplay = document.getElementById('sizeDisplay');
+        const messageDisplay = document.getElementById('messageDisplay');
+
+        // Game Configuration
+        const MAX_SIZE = 99999;
+        const START_SIZE = 5;
+        const TARGET_FPS = 60;
+
+        // Game State
+        let gameState = 'START'; // START, PLAYING, GAMEOVER, WIN
+        let lastTime = 0;
+        let mouseX = 0;
+        let mouseY = 0;
+        let isMoving = false;
+        
+        // Resize Canvas
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            if(gameState === 'START') {
+                mouseX = canvas.width / 2;
+                mouseY = canvas.height / 2;
+            }
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Player Object
+        const player = {
+            x: 0,
+            y: 0,
+            size: START_SIZE,
+            angle: 0,
+            color: '#ffdd00',
+            baseSpeed: 5
+        };
+
+        // Arrays
+        let enemies = [];
+        let bubbles = []; // Decorative background elements
+
+        // Camera
+        let camera = {
+            zoom: 1
+        };
+
+        // Colors for random generation
+        const fishColors = ['#ff4040', '#40ff40', '#4040ff', '#ff40ff', '#40ffff', '#ffa640', '#ffffff'];
+
+        // --- Core Functions ---
+
+        function initGame() {
+            player.x = 0;
+            player.y = 0;
+            player.size = START_SIZE;
+            player.angle = 0;
+            
+            enemies = [];
+            bubbles = [];
+            
+            mouseX = canvas.width / 2;
+            mouseY = canvas.height / 2;
+            isMoving = false;
+
+            // Generate concentric rings of fish around the player
+            let currentRadius = 60; // Start just outside the player
+            let currentSize = 2; // Start smaller than the player (size 5)
+            let totalFish = 0;
+
+            while (currentSize <= 120000) { // Go past 99999 to ensure plenty of food
+                let circumference = 2 * Math.PI * currentRadius;
+                let spacing = currentSize * 5; // Distance between fish in the same ring
+                let numFish = Math.max(1, Math.floor(circumference / spacing));
+
+                let angleOffset = Math.random() * Math.PI; // Randomize ring rotation
+
+                for (let i = 0; i < numFish; i++) {
+                    let angle = angleOffset + (i * (Math.PI * 2) / numFish);
+                    
+                    // Add slight jitter so it looks more natural than a perfect geometric circle
+                    let jitter = (Math.random() - 0.5) * currentSize * 1.5;
+                    let r = currentRadius + jitter;
+
+                    let x = Math.cos(angle) * r;
+                    let y = Math.sin(angle) * r;
+                    
+                    enemies.push({
+                        x: x,
+                        y: y,
+                        size: currentSize,
+                        color: fishColors[totalFish % fishColors.length],
+                        angle: angle + Math.PI / 2 // Fish face tangentially along the ring
+                    });
+                    totalFish++;
+                }
+                
+                // Expand outward for the next ring
+                currentRadius += currentSize * 5.5; 
+                
+                // Increase the size of fish in the next ring (exponential growth outward)
+                currentSize *= 1.12; 
+            }
+
+            gameState = 'PLAYING';
+            screens.classList.add('hidden');
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function spawnBubble() {
+            let viewWidth = canvas.width / camera.zoom;
+            let viewHeight = canvas.height / camera.zoom;
+            bubbles.push({
+                x: player.x + (Math.random() - 0.5) * viewWidth * 1.5,
+                y: player.y + (Math.random() - 0.5) * viewHeight * 1.5,
+                size: Math.random() * 5 + 2,
+                speed: Math.random() * 2 + 1
+            });
+        }
+
+        function update(dt) {
+            if (gameState !== 'PLAYING') return;
+
+            // Update Target Zoom
+            let targetZoom = Math.max(0.15, 30 / player.size);
+            camera.zoom += (targetZoom - camera.zoom) * 0.05;
+
+            // Player Movement
+            let dx = mouseX - canvas.width / 2;
+            let dy = mouseY - canvas.height / 2;
+            let distToMouseScreen = Math.hypot(dx, dy);
+
+            if (isMoving && distToMouseScreen > 10) {
+                player.angle = Math.atan2(dy, dx);
+                let speedScale = Math.log10(player.size + 10) / Math.log10(START_SIZE + 10);
+                let currentSpeed = (player.baseSpeed * speedScale) / camera.zoom; 
+                
+                let maxScreenSpeed = 15 / camera.zoom;
+                currentSpeed = Math.min(currentSpeed, maxScreenSpeed);
+
+                player.x += Math.cos(player.angle) * currentSpeed;
+                player.y += Math.sin(player.angle) * currentSpeed;
+            }
+
+            // Update UI
+            sizeDisplay.innerText = `Size: ${Math.floor(player.size)} / ${MAX_SIZE}`;
+            if (player.size >= MAX_SIZE) {
+                winGame();
+                return;
+            }
+
+            // Collision Check (Optimized with bounding box for large fish counts)
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                let e = enemies[i];
+                
+                // Quick bounding box check
+                let diffX = Math.abs(player.x - e.x);
+                let diffY = Math.abs(player.y - e.y);
+                let hitThreshold = player.size + e.size * 0.8;
+
+                if (diffX < hitThreshold && diffY < hitThreshold) { 
+                    let dist = Math.hypot(diffX, diffY);
+                    
+                    if (dist < hitThreshold) {
+                        if (player.size > e.size) {
+                            let playerArea = Math.PI * player.size * player.size;
+                            let enemyArea = Math.PI * e.size * e.size;
+                            let newArea = playerArea + (enemyArea * 0.4); 
+                            player.size = Math.sqrt(newArea / Math.PI);
+                            
+                            enemies.splice(i, 1);
+                            messageDisplay.innerText = "Yum!";
+                            messageDisplay.style.color = "#40ff40";
+                            setTimeout(()=> {if(gameState==='PLAYING') messageDisplay.innerText="";}, 1000);
+                            continue;
+                        } else {
+                            loseGame();
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // Update background bubbles for atmosphere
+            let viewWidth = canvas.width / camera.zoom;
+            let viewHeight = canvas.height / camera.zoom;
+            let maxDist = Math.max(viewWidth, viewHeight) * 2;
+            
+            if (Math.random() < 0.1) spawnBubble();
+            for (let i = bubbles.length - 1; i >= 0; i--) {
+                let b = bubbles[i];
+                b.y -= b.speed / camera.zoom; 
+                let dist = Math.hypot(player.x - b.x, player.y - b.y);
+                if (dist > maxDist) bubbles.splice(i, 1);
+            }
+        }
+
+        // Draw a single fish shape
+        function drawFish(ctx, x, y, size, angle, color, isPlayer) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+
+            ctx.fillStyle = color;
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = size * 0.05;
+
+            // Tail
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.5, 0);
+            ctx.lineTo(-size * 1.6, -size * 0.8);
+            ctx.lineTo(-size * 1.6, size * 0.8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Body
+            ctx.beginPath();
+            ctx.ellipse(0, 0, size, size * 0.65, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Eye
+            let eyeX = size * 0.5;
+            let eyeY = -size * 0.25;
+            let eyeRad = size * 0.15;
+            
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(eyeX, eyeY, eyeRad, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Pupil
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(eyeX + size * 0.05, eyeY, size * 0.07, 0, Math.PI * 2);
+            ctx.fill();
+
+            // If player, maybe draw a little crown if huge
+            if (isPlayer && size > MAX_SIZE * 0.5) {
+                ctx.fillStyle = 'gold';
+                ctx.beginPath();
+                ctx.moveTo(size * 0.2, -size * 0.6);
+                ctx.lineTo(size * 0.4, -size * 1.0);
+                ctx.lineTo(size * 0.5, -size * 0.65);
+                ctx.lineTo(size * 0.6, -size * 1.0);
+                ctx.lineTo(size * 0.8, -size * 0.6);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        function draw() {
+            // Clear entire screen
+            ctx.fillStyle = '#001f3f';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (gameState === 'START') return;
+
+            ctx.save();
+            
+            // Move origin to center of screen
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            // Apply Camera Zoom
+            ctx.scale(camera.zoom, camera.zoom);
+            // Translate negative player position so player is center
+            ctx.translate(-player.x, -player.y);
+
+            // Draw Bubbles
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+            bubbles.forEach(b => {
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Draw Enemies (Stationary)
+            // Sort by size so bigger fish draw on top
+            let sortedEnemies = [...enemies].sort((a,b) => a.size - b.size);
+            for (let e of sortedEnemies) {
+                // Optimization: Only draw if within screen + buffer
+                let viewWidth = (canvas.width / camera.zoom) * 1.5;
+                let viewHeight = (canvas.height / camera.zoom) * 1.5;
+                if (e.x > player.x - viewWidth && e.x < player.x + viewWidth &&
+                    e.y > player.y - viewHeight && e.y < player.y + viewHeight) {
+                    drawFish(ctx, e.x, e.y, e.size, e.angle, e.color, false);
+                }
+            }
+
+            // Draw Player
+            drawFish(ctx, player.x, player.y, player.size, player.angle, player.color, true);
+
+            ctx.restore();
+        }
+
+        function gameLoop(timestamp) {
+            let dt = timestamp - lastTime;
+            lastTime = timestamp;
+
+            update(dt);
+            draw();
+
+            if (gameState === 'PLAYING') {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        // --- Game State Modifiers ---
+
+        function loseGame() {
+            gameState = 'GAMEOVER';
+            screens.classList.remove('hidden');
+            screenTitle.innerText = "CHOMP!";
+            screenTitle.style.color = "#ff4040";
+            screenText.innerText = `You were eaten by a bigger fish!\nYou reached size ${Math.floor(player.size)}.`;
+            actionBtn.innerText = "Try Again";
+        }
+
+        function winGame() {
+            gameState = 'WIN';
+            screens.classList.remove('hidden');
+            screenTitle.innerText = "OCEAN KING!";
+            screenTitle.style.color = "gold";
+            screenText.innerText = "You have reached size 99999 and conquered the ocean!\nNothing can eat you now.";
+            actionBtn.innerText = "Play Again";
+        }
+
+        // --- Input Handling ---
+        
+        function handleInputMove(x, y) {
+            mouseX = x;
+            mouseY = y;
+            isMoving = true;
+        }
+
+        function handleInputEnd() {
+            isMoving = false;
+        }
+
+        // Mouse Events
+        window.addEventListener('mousemove', (e) => handleInputMove(e.clientX, e.clientY));
+        window.addEventListener('mousedown', () => isMoving = true);
+        window.addEventListener('mouseup', handleInputEnd);
+        window.addEventListener('mouseleave', handleInputEnd);
+
+        // Touch Events
+        window.addEventListener('touchstart', (e) => {
+            handleInputMove(e.touches[0].clientX, e.touches[0].clientY);
+        }, {passive: false});
+        
+        window.addEventListener('touchmove', (e) => {
+            e.preventDefault(); // Prevent scrolling
+            handleInputMove(e.touches[0].clientX, e.touches[0].clientY);
+        }, {passive: false});
+
+        window.addEventListener('touchend', handleInputEnd);
+        window.addEventListener('touchcancel', handleInputEnd);
+
+        // Button Event
+        actionBtn.addEventListener('click', () => {
+            initGame();
+        });
+
+        // Initial Draw to setup background before clicking play
+        draw();
+    </script>
+</body>
+</html>
