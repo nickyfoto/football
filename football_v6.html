@@ -536,9 +536,20 @@
     // --- INPUT HANDLING ---
     const isInGame = () => gameState !== 'MENU' && gameState !== 'GAME_OVER' && overlayMenu.classList.contains('hidden');
 
+    // Keys are read by physical position (e.code) so WASD/Q/E sit in the same place on any keyboard layout
+    const KEY_BY_CODE = {
+        KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd', KeyE: 'e', KeyQ: 'q', Space: ' ',
+        Digit1: '1', Digit2: '2', Digit3: '3', Numpad1: '1', Numpad2: '2', Numpad3: '3',
+        ArrowUp: 'ArrowUp', ArrowDown: 'ArrowDown', ArrowLeft: 'ArrowLeft', ArrowRight: 'ArrowRight'
+    };
+    function gameKey(e) {
+        if (e.code && e.code !== 'Unidentified') return KEY_BY_CODE[e.code] || '';
+        return e.key.length === 1 ? e.key.toLowerCase() : e.key; // Some virtual keyboards send no code
+    }
+
     window.addEventListener('keydown', (e) => {
         if (e.target && e.target.tagName === 'INPUT') return;
-        const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+        const k = gameKey(e);
         if (keys.hasOwnProperty(k)) keys[k] = true;
         if (!isInGame()) return;
         if (k === ' ' || k.startsWith('Arrow')) e.preventDefault();
@@ -549,7 +560,7 @@
         else if (k === '1' || k === '2' || k === '3') doAction('pass', Number(k) - 1);
     });
     window.addEventListener('keyup', (e) => {
-        const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+        const k = gameKey(e);
         if (keys.hasOwnProperty(k)) keys[k] = false;
     });
     window.addEventListener('blur', () => {
