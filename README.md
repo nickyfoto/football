@@ -13,18 +13,22 @@ Live site:
 - `football_v3.html`: third iteration
 - `football_v4.html`: fourth iteration, titled Blitz Breaker
 - `football_v5.html`: fifth iteration (single player)
-- `football_v6.html`: latest version, Blitz Breaker Online (two-player online play, plus solo)
+- `football_v6.html`: Blitz Breaker Online (Blue vs Red, two-player online play, plus solo)
+- `football_v7.html`: latest version, Blitz Breaker 2026 (NFL rosters, play-calling, 3D camera; 1P vs AI, 2P coach mode and online play)
 - `index.html`: GitHub Pages entry point that redirects to the latest version
 
-## Playing online (v6)
+## Playing online (v7)
 
-1. One player clicks **Create Game** and becomes Blue. Send the room code or the copied link to a friend.
-2. The other player enters the code and clicks **Join** (or just opens the link) and becomes Red.
-3. Blue clicks **Kick Off**.
+1. Both players choose **Online Room Code**.
+2. One player clicks **Create Code** and sends the 4-letter code, or the link from **Copy Invite Link**, to a friend.
+3. The other player enters the code and clicks **Join**, or just opens the link.
+4. Each player picks their own team, then the player who created the room clicks **Kick Off**.
 
-Whoever has the ball plays offense: run with drag/arrow keys, Space to pass to the most open receiver, 1-3 to pick a receiver, E to hand off. The other player controls one defender (ringed and labelled YOU): move it with drag/arrow keys, and press Q or Space to switch to the defender nearest the ball (before the snap it cycles through all of them).
+Whoever has the ball plays offense: pick a play, snap, run with drag/arrow keys, pass with A/S/D/W (or Space for the most open receiver), and hand off with E. The other player calls the coverage and controls one defender (yellow ring): tap any defender to take it over, or press Q to jump to the one nearest the ball. The offense can snap once the defense has called its coverage, or after 5 seconds.
 
-Players connect directly to each other over WebRTC using [PeerJS](https://peerjs.com/). The public PeerJS server is used only for matchmaking, so there is no game server to run, and the page works on GitHub Pages as-is. Blue's browser runs the game and streams it to Red. Both players need an internet connection.
+v6 works the same way with Blue vs Red teams and a 5-character code.
+
+Players connect directly to each other over WebRTC using [PeerJS](https://peerjs.com/). The public PeerJS server is used only for matchmaking, so there is no game server to run, and the page works on GitHub Pages as-is. The browser that created the room runs the game and streams it to the other player. Both players need an internet connection.
 
 ## Running locally
 
