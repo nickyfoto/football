@@ -14,10 +14,25 @@ Live site:
 - `football_v4.html`: fourth iteration, titled Blitz Breaker
 - `football_v5.html`: fifth iteration (single player)
 - `football_v6.html`: Blitz Breaker Online (Blue vs Red, two-player online play, plus solo)
-- `football_v7.html`: latest version, Blitz Breaker 2026 (NFL rosters, play-calling, 3D camera; 1P vs AI, 2P coach mode and online play)
+- `football_v7.html`: Blitz Breaker 2026 (NFL rosters, play-calling, 3D camera; 1P vs AI, 2P coach mode and online play)
+- `football_v8.html`: latest version, Blitz Breaker 2026 Sim Edition (realistic football simulation, see below)
 - `index.html`: GitHub Pages entry point that redirects to the latest version
 
-## Playing online (v7)
+## What's realistic in v8
+
+- **Full 11-on-11 every snap.** All 22 players stay on the field for the whole play: receivers keep blocking after a catch, the QB stays put after a handoff, and an interception or punt return turns the defense into blockers mid-play.
+- **Momentum.** Players speed up, plant and cut instead of moving at a fixed speed. Top speed and acceleration depend on position, with a few stars faster than normal.
+- **Real routes and passing.** Slants, outs, curls, digs, posts, seams and drags are run as real route trees. The QB throws to where the route is going; the ball flies in an arc, is less accurate deep and under pressure, and catches can be contested, dropped or intercepted.
+- **Blocking and coverage.** Linemen set a pocket and engage rushers; pass rushers win over time. Cover 1, Cover 3, Zero Blitz, QB Spy and Run Stuff each play their assignments, and play-action pulls linebackers up.
+- **Tackling.** Pursuit angles, broken tackles, gang tackles, yards after contact, fumbles (~1%, more on sacks), sacks, safeties and out-of-bounds.
+- **Rules and clock.** Four quarters (2-15 min), halftime, two-minute warning, 2025 overtime (both teams get the ball), three timeouts per half, a 40-second play clock with delay-of-game, and a running clock with an accelerated runoff between plays.
+- **Kicking.** 2025 dynamic kickoff (touchbacks to the 35), punts with fair catches, coverage and returns, distance-based field goals and 33-yard extra points.
+- **Decisions.** You choose on 4th down (go for it / punt / field goal) and after touchdowns (kick / go for 2); the CPU uses a situational chart.
+- **Broadcast look.** Scorebug with timeouts and play clock, a play-by-play ticker, a box score at the final whistle, a fully marked field, stands and goal posts, and uniformed players (home team in color, away in white).
+
+Controls: arrows or drag to move. QB: A/S/D/W/E throws to WR1/TE/WR2/SLOT/RB, Space throws to the most open receiver. Ball carrier: Space jukes; with no input the runner runs on his own. Defense: tap a defender or press Q to take the one nearest the ball; with no input he plays his assignment. T calls a timeout before the snap.
+
+## Playing online (v7 and v8)
 
 1. Both players choose **Online Room Code**.
 2. One player clicks **Create Code** and sends the 4-letter code, or the link from **Copy Invite Link**, to a friend.
