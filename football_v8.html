@@ -990,7 +990,7 @@
 
     let gameMode = '1P'; // '1P' (User vs CPU), '2P' (User controls both offenses) or 'ONLINE' (two browsers)
     let roomCode = '';
-    let quarterMinutes = 5;
+    let quarterMinutes = 15;
     let cpuSkill = 1;     // 0 rookie, 1 pro, 2 all-pro
 
     // --- ONLINE PLAY ---
@@ -1292,7 +1292,7 @@
         };
         render();
     }
-    buildOptions($('opt-qtr'), [[2, '2 MIN'], [3, '3 MIN'], [5, '5 MIN'], [8, '8 MIN'], [15, '15 MIN']],
+    buildOptions($('opt-qtr'), [[5, '5 MIN'], [8, '8 MIN'], [10, '10 MIN'], [15, '15 MIN (NFL)']],
         () => quarterMinutes, (v) => { quarterMinutes = v; });
     buildOptions($('opt-skill'), [[0, 'ROOKIE'], [1, 'PRO'], [2, 'ALL-PRO']],
         () => cpuSkill, (v) => { cpuSkill = v; });
@@ -1921,7 +1921,7 @@
             const t = sideTeam(side);
             const s = stats[side];
             const total = s.passYds + s.rushYds;
-            return `${t.abbr}: ${total} YDS (${s.passYds} PASS, ${s.rushYds} RUSH) • ${s.comp}/${s.att} • ${s.firstDowns} 1ST DOWNS • ${s.tos} TO • ${s.sacks} SACKS`;
+            return `${t.abbr}: ${total} YDS (${s.passYds} PASS, ${s.rushYds} RUSH) • ${s.comp}/${s.att} • ${s.firstDowns} 1ST DOWNS • ${s.tos} TO • SACKED ${s.sacks}x`;
         };
         const leaders = Object.values(stats.leaders);
         const top = (key, label) => {
@@ -2337,11 +2337,11 @@
         if (!clockRunning) return 0;
         const off = possession === 'HOME' ? scoreHome : scoreAway;
         const opp = possession === 'HOME' ? scoreAway : scoreHome;
-        const scale = clamp(quarterMinutes / 5, 0.4, 1.6);
         const lateHalf = (quarter === 2 && gameClock <= 120) || (quarter >= 4 && gameClock <= 180);
-        if (lateHalf && off <= opp) return 7;                          // Hurry-up offense
+        if (lateHalf && off <= opp) return 16;                         // Hurry-up offense (no huddle)
         if (quarter >= 4 && off > opp && gameClock <= 300) return 37;   // Milking the clock
-        return Math.round(24 * scale);
+        // NFL pace: ~38s snap to snap with the clock running (huddle, line up, snap with a few seconds left)
+        return 33;
     }
 
     function snapBall() {
@@ -2486,9 +2486,9 @@
         def.eng = blk;
         const rusher = isOL(blk) && (def.pos === 'LDE' || def.pos === 'RDE');
         let frames;
-        if (mode === 'PASS') frames = isOL(blk) ? rand(rusher ? 130 : 150, rusher ? 250 : 290) : rand(50, 110);
+        if (mode === 'PASS') frames = isOL(blk) ? rand(rusher ? 105 : 130, rusher ? 230 : 270) : rand(45, 100);
         else if (mode === 'CONVOY') frames = rand(25, 75);
-        else if (isOL(blk)) frames = Math.random() < (selectedDefPlay.id === 'RUN' ? 0.24 : 0.13) ? rand(30, 60) : rand(110, 240);
+        else if (isOL(blk)) frames = Math.random() < (selectedDefPlay.id === 'RUN' ? 0.28 : 0.17) ? rand(30, 60) : rand(100, 230);
         else frames = rand(40, 110);
         // CPU defenders shed blocks a little faster on higher skill levels
         if (gameMode === '1P' && !isDefense) frames /= skillMul();
@@ -2669,7 +2669,7 @@
             if (pressure.d < 1.4 && playFrame > 30 && Math.random() < 0.25) aiQBDecide(true);
             return;
         }
-        aiQBDecide(pressure.d < 2.4 || playFrame > readAt + 85);
+        aiQBDecide(pressure.d < 3.0 || playFrame > readAt + 45);
     }
     function aiQBDecide(urgent) {
         const order = PROGRESSION[selectedOffPlay.id] || [0, 1, 2, 3, 4];
@@ -2684,8 +2684,10 @@
         const ev = evaluateReceiver(bestK);
         if (ev && ev.sep > 1.4) { throwPassToIndex(bestK); return; }
         const lane = aiRunDir(qb);
-        if (lane.clear > 4 && lane.dy > 0.5) { qb.scramble = true; return; }
-        if (Math.random() < 0.4) throwAway();
+        if (lane.clear > 6 && lane.dy > 0.7) { qb.scramble = true; return; }
+        // Nothing open: live for the next down instead of taking the sack
+        const rush = nearestOpp(qb, defenders, (d) => !d.eng);
+        if (rush.d < 2.4 || Math.random() < 0.5) throwAway();
     }
 
     // How open is a receiver? Separation at the point where the ball would arrive
@@ -2778,7 +2780,7 @@
         const d = Math.hypot(aim.x - qb.x, aim.y - qb.y);
 
         // Accuracy: worse deep, under pressure and on the move
-        let sd = 0.3 + d * 0.022;
+        let sd = 0.42 + d * 0.027;
         const rush = nearestOpp(qb, defenders, (x) => !x.eng);
         if (rush.d < 2.5) sd *= 1.8;
         if (speedOf(qb) > qb.spd * 0.5) sd *= 1.35;
@@ -2827,7 +2829,7 @@
         gameState = 'PASS_IN_AIR';
         fx('throw');
         // Defenders read the throw after a short reaction time
-        for (const dd of defenders) dd.readAt = playFrame + Math.round(rand(10, 20));
+        for (const dd of defenders) dd.readAt = playFrame + Math.round(rand(8, 16));
     }
 
     function resolvePass() {
@@ -3283,9 +3285,9 @@
             const dd = dist(d, c);
             if (dd > (d.eng ? CONTACT - 0.2 : CONTACT)) continue;
 
-            let p = 0.87;
-            p -= 0.1 * clamp(speedOf(c) / c.spd, 0, 1);
-            if (c.elusive > 0) p -= 0.38;
+            let p = 0.91;
+            p -= 0.08 * clamp(speedOf(c) / c.spd, 0, 1);
+            if (c.elusive > 0) p -= 0.3;
             if (d.eng) p = 0.14;                       // Arm tackle while engaged with a blocker
             if (isOL(c) || c.pos === 'QB' && !hasCrossedLOS) p += 0.08;
             let help = 0;
@@ -3320,7 +3322,7 @@
         const c = player;
         const downhill = clamp(c.vy / c.spd, 0, 1);
         const power = (c.pos === 'RB' ? 1.15 : 1) * (SPEED_OVERRIDE[c.nm] ? 1 : 0.95);
-        const yac = downhill * rand(0.8, 3.3) * power * (help >= 2 ? 0.45 : (help === 1 ? 0.75 : 1));
+        const yac = downhill * rand(0.4, 2.6) * power * (help >= 2 ? 0.45 : (help === 1 ? 0.75 : 1));
         const sack = c === qb && !hasCrossedLOS && !isReturn;
         if (!sack) c.y += yac;
         c.down = 60;
@@ -3436,7 +3438,7 @@
         // Stats
         const L = leader(c, side);
         if (sack) {
-            stats[other(side)].sacks++;
+            stats[side].sacks++; // Times this offense was sacked
             stats[side].passYds += gain;
             pbp(side, `${c.nm} SACKED by ${tackler ? tackler.nm : 'defense'} for ${yardsText(gain)}.`);
         } else if (playLog && playLog.receiver === c && playLog.caughtAt !== undefined) {
