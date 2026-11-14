@@ -912,11 +912,11 @@
         SLANT:   { pts: [[0, 2], [7, 9]], end: 'cont' },
         OUT:     { pts: [[0, 5], [-7, 5.5]], end: 'cont' },
         STICK:   { pts: [[0, 6], [-0.5, 5.5]], end: 'sit' },
-        CURL:    { pts: [[0, 12], [1.5, 10]], end: 'sit' },
+        CURL:    { pts: [[0, 10.5], [1.5, 9]], end: 'sit' },
         FLAT:    { pts: [[-1, 1], [-8, 3]], end: 'cont' },
         SEAM:    { pts: [[1, 6], [1.5, 45]], end: 'cont' },
         POST:    { pts: [[0, 11], [8, 26]], end: 'cont' },
-        DIG:     { pts: [[0, 14], [12, 14.5]], end: 'cont' },
+        DIG:     { pts: [[0, 12], [12, 12.5]], end: 'cont' },
         CORNER:  { pts: [[0, 10], [-8, 22]], end: 'cont' },
         DRAG:    { pts: [[1.5, 2], [16, 5]], end: 'cont' },
         SWING:   { pts: [[-3, -0.5], [-8, 2.5]], end: 'cont' },
@@ -2177,9 +2177,9 @@
         if (hurry) return pick(['SLANTS', 'CURLS', 'VERTS', 'MESH', 'CURLS']);
         if (quarter >= 4 && off > opp && gameClock < 300) return pick(['IZ', 'IZ', 'TOSS', 'SLANTS']);
         if (togo <= 2) return pick(['IZ', 'IZ', 'TOSS', 'SLANTS', 'PA']);
-        if (down >= 3 && togo >= 7) return pick(['CURLS', 'MESH', 'VERTS', 'SLANTS', 'CURLS']);
+        if (down >= 3 && togo >= 7) return pick(['CURLS', 'MESH', 'MESH', 'SLANTS', 'CURLS', 'VERTS']);
         if (lineOfScrimmage >= 88) return pick(['SLANTS', 'MESH', 'IZ', 'TOSS', 'CURLS']);
-        return pick(['IZ', 'TOSS', 'SLANTS', 'CURLS', 'VERTS', 'PA', 'MESH', 'IZ']);
+        return pick(['IZ', 'TOSS', 'SLANTS', 'CURLS', 'SLANTS', 'PA', 'MESH', 'IZ', 'MESH', 'VERTS']);
     }
     function aiPickDefPlay() {
         const togo = firstDownLine - lineOfScrimmage;
@@ -2656,8 +2656,9 @@
     }
 
     // CPU quarterback: drop, read the progression on time, throw on rhythm or under pressure
-    const PROGRESSION = { SLANTS: [0, 2, 1, 3, 4], CURLS: [0, 2, 1, 3, 4], VERTS: [1, 3, 0, 2, 4], PA: [0, 2, 3, 1, 4], MESH: [0, 1, 3, 2, 4] };
-    const READ_AT = { SLANTS: 48, CURLS: 88, VERTS: 112, PA: 108, MESH: 85 };
+    // Reads go short to deep (shot plays excepted) and start when the first route breaks
+    const PROGRESSION = { SLANTS: [0, 2, 3, 1, 4], CURLS: [0, 2, 3, 4, 1], VERTS: [1, 3, 4, 0, 2], PA: [2, 1, 0, 3, 4], MESH: [3, 1, 0, 4, 2] };
+    const READ_AT = { SLANTS: 40, CURLS: 68, VERTS: 90, PA: 96, MESH: 58 };
     function aiQB(q) {
         const play = selectedOffPlay;
         const pressure = nearestOpp(q, defenders, (d) => !d.eng);
@@ -2672,11 +2673,11 @@
     }
     function aiQBDecide(urgent) {
         const order = PROGRESSION[selectedOffPlay.id] || [0, 1, 2, 3, 4];
-        const step = Math.floor((playFrame - (READ_AT[selectedOffPlay.id] || 80)) / 22);
+        const step = Math.floor((playFrame - (READ_AT[selectedOffPlay.id] || 80)) / 16);
         for (let i = 0; i <= Math.min(order.length - 1, Math.max(0, step)); i++) {
             const k = order[i];
             const ev = evaluateReceiver(k);
-            if (ev && ev.sep >= 2.3 + ev.depth * 0.02) { throwPassToIndex(k); return; }
+            if (ev && ev.sep >= 2.4 + Math.max(0, ev.depth - 10) * 0.08) { throwPassToIndex(k); return; }
         }
         if (!urgent) return;
         const bestK = findBestOpenReceiverIndex();
@@ -2709,7 +2710,7 @@
             if (!ev) continue;
             // Open beats deep: a QB takes the sure completion unless the shot is clearly there
             const firstBonus = lineOfScrimmage + ev.depth >= firstDownLine ? 10 : 0;
-            const score = Math.min(ev.sep, 6) * 15 + clamp(ev.depth, -5, 25) * 0.8 + firstBonus - (ev.sep < 1.5 ? 200 : 0) - (ev.depth > 20 && ev.sep < 3.5 ? 40 : 0);
+            const score = Math.min(ev.sep, 5) * 15 + clamp(ev.depth, -3, 10) * 1.0 - Math.max(0, ev.depth - 15) * 1.5 + firstBonus - (ev.sep < 1.5 ? 200 : 0) - (ev.depth > 18 && ev.sep < 4 ? 45 : 0);
             if (score > bestScore) { bestScore = score; bestK = k; }
         }
         return bestK;
@@ -2851,14 +2852,14 @@
             if (Math.random() < pInt) { handleInterception(nearDef); return; }
         }
         if (inBounds && r && dr <= reach) {
-            let p = 0.95 - (dr > 0.9 ? 0.12 : 0);
-            if (dd < 1.5) p *= 0.42 + 0.38 * (dd / 1.5);
+            let p = 0.96 - (dr > 1.0 ? 0.1 : 0);
+            if (dd < 1.3) p *= 0.6 + 0.35 * (dd / 1.3); // Contested: a defender in the receiver's hip pocket
             if (r.down > 0) p = 0.05;
             if (Math.random() < p) { completePass(r); return; }
         }
         let msg = 'INCOMPLETE';
         if (!r) msg = 'THROWN AWAY';
-        else if (dd < 1.6 && dd < dr + 0.5) msg = 'PASS BROKEN UP!';
+        else if (dd < 1.3 && dd < dr + 0.3) msg = 'PASS BROKEN UP!';
         else if (dr <= reach) msg = 'DROPPED!';
         handleIncompletePass(msg, r, dd < 1.6 ? nearDef : null);
     }
