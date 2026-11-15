@@ -15,7 +15,7 @@ Live site:
 - `football_v5.html`: fifth iteration (single player)
 - `football_v6.html`: Blitz Breaker Online (Blue vs Red, two-player online play, plus solo)
 - `football_v7.html`: Blitz Breaker 2026 (NFL rosters, play-calling, 3D camera; 1P vs AI, 2P coach mode and online play)
-- `football_v8.html`: latest version, Blitz Breaker 2026 Sim Edition (realistic football simulation, see below)
+- `football_v8.html`: latest version, Blitz Breaker 2026 Sim Edition (all 32 NFL teams, realistic football simulation, see below)
 - `index.html`: GitHub Pages entry point that redirects to the latest version
 
 ## What's realistic in v8
@@ -27,6 +27,7 @@ Live site:
 - **Tackling.** Pursuit angles, broken tackles, gang tackles, yards after contact, fumbles (~1%, more on sacks), sacks, safeties and out-of-bounds.
 - **Rules and clock.** Four quarters (5, 8, 10 or 15 minutes; 15 is the default and NFL length), halftime, two-minute warning, 2025 overtime (both teams get the ball), three timeouts per half, and a 40-second play clock with delay-of-game. The game clock keeps NFL pace: about 33 seconds run off between in-bounds plays (16 in a hurry-up, more when a leading team milks the clock), and it stops for incompletions, scores and changes of possession. Shorter quarters therefore mean proportionally lower scores.
 - **Kicking.** 2025 dynamic kickoff (touchbacks to the 35), punts with fair catches, coverage and returns, distance-based field goals and 33-yard extra points.
+- **All 32 teams** with 2025-26 starters, team colors and home/away uniforms. In 1P the CPU defense gets quicker and tighter in coverage with the CPU skill setting (Rookie / Pro / All-Pro).
 - **Decisions.** You choose on 4th down (go for it / punt / field goal) and after touchdowns (kick / go for 2); the CPU uses a situational chart.
 - **Broadcast look.** Scorebug with timeouts and play clock, a play-by-play ticker, a box score at the final whistle, a fully marked field, stands and goal posts, and uniformed players (home team in color, away in white).
 
