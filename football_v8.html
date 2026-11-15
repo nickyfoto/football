@@ -258,6 +258,46 @@
             .tool-btns button { padding: 3px 6px; font-size: 0.6rem; }
             .choice-btn { min-width: 120px; padding: 10px 12px; }
         }
+        /* Team picker grouped by conference and division */
+        .conf-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .conf-pick-col { display: flex; flex-direction: column; gap: 8px; }
+        .conf-pick-title { color: #fff; font-size: 1rem; text-align: center; letter-spacing: 2px; }
+        .div-pick-title { color: #94a3b8; font-size: 0.65rem; letter-spacing: 1px; margin: 2px 0; }
+        .div-pick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+        .team-card { padding: 6px 4px; color: #fff; text-shadow: 1px 1px 0 rgba(0,0,0,0.6); font-size: 0.7rem; }
+        @media (max-width: 700px) { .conf-pick { grid-template-columns: 1fr; } .div-pick { grid-template-columns: repeat(2, 1fr); } }
+
+        /* Season hub */
+        .season-head { border-left: 6px solid; background: rgba(15,23,42,0.95); border-radius: 10px; padding: 10px 14px; margin: 6px 0 10px; }
+        .season-title { color: #fff; font-size: clamp(1.1rem, 3vw, 1.8rem); }
+        .season-phase { color: #facc15; font-size: 0.8rem; letter-spacing: 1px; margin-top: 2px; }
+        .season-next { background: rgba(30,41,59,0.95); border: 2px solid #475569; border-radius: 12px; padding: 12px; text-align: center; margin-bottom: 10px; }
+        .season-next-label { color: #fff; font-size: clamp(0.9rem, 2.4vw, 1.2rem); margin-bottom: 8px; }
+        .season-btn-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 6px 0; }
+        .season-btn { padding: 8px 14px; background: #1e293b; color: #fff; border: 2px solid #64748b; border-radius: 8px; font-size: 0.8rem; cursor: pointer; }
+        .season-btn:hover { border-color: #facc15; }
+        .season-section { background: rgba(15,23,42,0.9); border: 1px solid #334155; border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; }
+        .season-section-title { color: #94a3b8; font-size: 0.7rem; letter-spacing: 2px; margin-bottom: 6px; }
+        .score-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px; }
+        .score-cell { font-family: 'Oswald', sans-serif; color: #e2e8f0; font-size: 0.8rem; background: #0b1220; border-radius: 4px; padding: 2px 6px; display: inline-block; margin: 1px 3px 1px 0; }
+        .score-cell.mine { color: #000; background: #facc15; }
+        .conf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        @media (max-width: 700px) { .conf-grid { grid-template-columns: 1fr; } }
+        .conf-title { color: #fff; text-align: center; letter-spacing: 2px; margin-bottom: 4px; }
+        .div-block { margin-bottom: 6px; }
+        .div-title { color: #facc15; font-size: 0.65rem; letter-spacing: 1px; }
+        .std-row { display: grid; grid-template-columns: 44px 1fr 46px 40px; align-items: center; gap: 6px; font-family: 'Oswald', sans-serif; color: #e2e8f0; font-size: 0.82rem; padding: 1px 4px; border-radius: 4px; }
+        .std-row.mine { background: rgba(250,204,21,0.18); }
+        .std-rec, .std-diff { text-align: right; }
+        .std-diff { color: #94a3b8; }
+        .chip-wrap { display: inline-flex; align-items: center; gap: 4px; margin-right: 4px; }
+        .team-chip { display: inline-block; min-width: 36px; text-align: center; color: #fff; font-size: 0.7rem; padding: 1px 4px; border-radius: 4px; border: 2px solid; text-shadow: 1px 1px 0 #000; }
+        .team-chip.mine { box-shadow: 0 0 0 2px #facc15; }
+        .chip-rec { color: #94a3b8; font-size: 0.7rem; }
+        .seed-num { color: #facc15; font-size: 0.7rem; }
+        .seed-line, .bracket-line { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 3px 0; }
+        .seed-conf { color: #fff; font-size: 0.7rem; min-width: 70px; letter-spacing: 1px; }
+
         #mobile-instruction { font-size: 11px; letter-spacing: 0.05em; padding: 5px 8px; background: rgba(0,0,0,0.6); color: #fff; text-align: center; }
     </style>
 </head>
@@ -299,6 +339,7 @@
                     </div>
                 </div>
                 <div class="tool-btns">
+                    <button id="menu-btn">MENU</button>
                     <button id="cam-btn">3D CAM: ON</button>
                     <button id="fs-btn">FULLSCREEN</button>
                 </div>
@@ -342,6 +383,13 @@
             <button id="mode-1p-btn" class="px-4 py-2 rounded-lg border-2 border-amber-400 bg-blue-600 text-white text-xs md:text-sm">1P VS CPU</button>
             <button id="mode-2p-btn" class="px-4 py-2 rounded-lg border-2 border-slate-600 bg-slate-800 text-slate-300 text-xs md:text-sm">2P COACH MODE (CONTROL BOTH)</button>
             <button id="mode-mp-btn" class="px-4 py-2 rounded-lg border-2 border-slate-600 bg-slate-800 text-slate-300 text-xs md:text-sm">ONLINE ROOM CODE</button>
+            <button id="mode-season-btn" class="px-4 py-2 rounded-lg border-2 border-slate-600 bg-slate-800 text-slate-300 text-xs md:text-sm">SEASON</button>
+        </div>
+
+        <!-- Season mode: resume a saved season -->
+        <div id="season-box" class="hidden flex flex-col items-center gap-2 mb-3 max-w-xl">
+            <div id="season-box-text" class="text-xs text-slate-300 text-center"></div>
+            <button id="season-resume-btn" class="hidden arcade-btn" style="padding: 8px 22px; font-size: 1rem; background: linear-gradient(180deg, #16a34a, #166534);">RESUME SEASON</button>
         </div>
 
         <!-- Game Settings -->
@@ -366,8 +414,8 @@
             </div>
         </div>
 
-        <div class="text-amber-400 text-xs md:text-sm mb-2 tracking-wider">SELECT YOUR NFL 2026 TEAM TO KICK OFF:</div>
-        <div id="team-grid" class="grid grid-cols-3 md:grid-cols-4 gap-2.5 max-w-3xl w-full max-h-[46vh] overflow-y-auto p-2"></div>
+        <div id="team-pick-label" class="text-amber-400 text-xs md:text-sm mb-2 tracking-wider">SELECT YOUR TEAM TO KICK OFF:</div>
+        <div id="team-grid" class="w-full max-w-5xl max-h-[48vh] overflow-y-auto p-1"></div>
     </div>
 
     <!-- Playcalling & Pre-Snap Overlay -->
@@ -393,6 +441,11 @@
         <div id="choice-title" class="text-amber-400 text-xl md:text-3xl mb-1 text-center" style="text-shadow: 3px 3px 0 #000;">4TH DOWN</div>
         <div id="choice-sub" class="text-slate-200 text-xs md:text-sm mb-4 text-center"></div>
         <div id="choice-grid" class="flex flex-wrap gap-3 justify-center"></div>
+    </div>
+
+    <!-- Season hub: schedule, standings, playoffs -->
+    <div id="overlay-season" class="interactive-overlay hidden" style="justify-content: flex-start; overflow-y: auto; background: rgba(5, 8, 15, 0.95);">
+        <div id="season-content" class="w-full max-w-5xl"></div>
     </div>
 
     <!-- In-Game Big State Messages -->
@@ -993,6 +1046,19 @@
         TEN: { helm: '#0c2340', stripe: '#4b92db', pants: '#ffffff', mask: '#0c2340' },
         WAS: { helm: '#5a1414', stripe: '#ffb612', pants: '#ffb612', mask: '#5a1414' }
     };
+    // Conferences & divisions, and team strength for simulated season games
+    const DIVISIONS = {
+        'AFC EAST': ['BUF', 'MIA', 'NE', 'NYJ'], 'AFC NORTH': ['BAL', 'CIN', 'CLE', 'PIT'],
+        'AFC SOUTH': ['HOU', 'IND', 'JAX', 'TEN'], 'AFC WEST': ['DEN', 'KC', 'LAC', 'LV'],
+        'NFC EAST': ['DAL', 'NYG', 'PHI', 'WAS'], 'NFC NORTH': ['CHI', 'DET', 'GB', 'MIN'],
+        'NFC SOUTH': ['ATL', 'CAR', 'NO', 'TB'], 'NFC WEST': ['ARI', 'LAR', 'SEA', 'SF']
+    };
+    // Team strength for simulated games (roughly 2025 form)
+    const TEAM_RATING = {
+        PHI: 89, BUF: 89, KC: 87, BAL: 87, DET: 87, LAR: 87, SEA: 86, DEN: 86, NE: 84, GB: 84, SF: 83, LAC: 83,
+        HOU: 82, IND: 82, JAX: 81, PIT: 80, CHI: 80, TB: 80, MIN: 79, DAL: 78, WAS: 77, CAR: 75, ATL: 76, CIN: 76,
+        ARI: 74, MIA: 73, CLE: 70, NYG: 70, NO: 68, LV: 68, NYJ: 68, TEN: 66
+    };
     // All 32 teams, alphabetical on the team-select screen
     nfl2026Teams.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -1363,29 +1429,56 @@
 
     // --- MENU SETUP ---
     const teamCards = [];
+    // Team picker: AFC and NFC columns, four divisions of four
     function initTeamSelection() {
         teamGrid.innerHTML = '';
-        teamCards.length = 0;
-        nfl2026Teams.forEach((team, idx) => {
-            const card = document.createElement('div');
-            card.className = 'team-card';
-            card.style.background = `linear-gradient(135deg, ${team.p} 0%, ${team.p}dd 65%, ${team.s} 100%)`;
-            card.innerHTML = `
-                <div class="text-white text-sm md:text-base font-bold drop-shadow">${team.name}</div>
-                <div class="text-xs text-white/95 mt-1">QB #${team.roster.qb.no} ${team.roster.qb.nm} • RB #${team.roster.rb.no} ${team.roster.rb.nm}</div>
-                <div class="text-[10px] text-white/85">WR ${team.roster.wr1.nm}, ${team.roster.wr2.nm} • TE ${team.roster.te.nm}</div>
-                <div class="text-[9px] text-amber-300/95 mt-0.5">OL ${team.roster.ol[0].nm} • DEF ${team.roster.dl[0].nm}, ${team.roster.db[0].nm}</div>
-                <div class="pick-badge hidden"></div>
-            `;
-            card.addEventListener('click', () => onTeamCardClick(idx));
-            teamGrid.appendChild(card);
-            teamCards.push(card);
-        });
+        teamCards.length = nfl2026Teams.length;
+        const grid = document.createElement('div');
+        grid.className = 'conf-pick';
+        for (const conf of ['AFC', 'NFC']) {
+            const col = document.createElement('div');
+            col.className = 'conf-pick-col';
+            const title = document.createElement('div');
+            title.className = 'conf-pick-title';
+            title.textContent = conf;
+            col.appendChild(title);
+            for (const div of Object.keys(DIVISIONS).filter(d => d.startsWith(conf))) {
+                const dt = document.createElement('div');
+                dt.className = 'div-pick-title';
+                dt.textContent = div;
+                col.appendChild(dt);
+                const row = document.createElement('div');
+                row.className = 'div-pick';
+                for (const abbr of DIVISIONS[div]) {
+                    const idx = nfl2026Teams.findIndex(t => t.abbr === abbr);
+                    const team = nfl2026Teams[idx];
+                    const card = document.createElement('div');
+                    card.className = 'team-card';
+                    card.style.background = `linear-gradient(135deg, ${team.p} 0%, ${team.p}dd 65%, ${team.s} 100%)`;
+                    card.innerHTML = `
+                        <div class="text-white text-xs md:text-sm font-bold drop-shadow">${team.name}</div>
+                        <div class="text-[10px] text-white/90 mt-0.5">QB ${team.roster.qb.nm} • WR ${team.roster.wr1.nm}</div>
+                        <div class="pick-badge hidden"></div>
+                    `;
+                    card.addEventListener('click', () => onTeamCardClick(idx));
+                    row.appendChild(card);
+                    teamCards[idx] = card;
+                }
+                col.appendChild(row);
+            }
+            grid.appendChild(col);
+        }
+        teamGrid.appendChild(grid);
     }
     initTeamSelection();
 
+    let seasonMenu = false; // Season mode picked on the menu
     function onTeamCardClick(idx) {
-        if (gameMode === 'ONLINE') pickOnlineTeam(idx);
+        if (seasonMenu) {
+            const saved = season || loadSeason();
+            if (saved && saved.phase !== 'done' && !window.confirm(`Start a new season with ${nfl2026Teams[idx].name}? Your saved season will be replaced.`)) return;
+            startNewSeason(nfl2026Teams[idx]);
+        } else if (gameMode === 'ONLINE') pickOnlineTeam(idx);
         else startGame(nfl2026Teams[idx]);
     }
 
@@ -1426,14 +1519,28 @@
 
     function selectMode(mode) {
         if (mode !== 'ONLINE' && net.role) leaveRoom();
-        gameMode = mode;
+        seasonMenu = mode === 'SEASON';
+        gameMode = seasonMenu ? '1P' : mode; // A season is played against the CPU
         mpLobbyBox.classList.toggle('hidden', mode !== 'ONLINE');
-        $('opt-skill-wrap').classList.toggle('hidden', mode !== '1P');
+        $('opt-skill-wrap').classList.toggle('hidden', !(mode === '1P' || seasonMenu));
         mode1PBtn.className = mode === '1P' ? MODE_BTN_ON : MODE_BTN_OFF;
         mode2PBtn.className = mode === '2P' ? MODE_BTN_ON : MODE_BTN_OFF;
         modeMPBtn.className = mode === 'ONLINE' ? MODE_BTN_ON : MODE_BTN_OFF;
+        $('mode-season-btn').className = seasonMenu ? MODE_BTN_ON : MODE_BTN_OFF;
+        $('team-pick-label').textContent = seasonMenu ? 'PICK YOUR TEAM FOR A NEW SEASON:' : (mode === 'ONLINE' ? 'PICK YOUR TEAM:' : 'SELECT YOUR TEAM TO KICK OFF:');
+        renderSeasonBox();
         renderLobby();
     }
+    $('mode-season-btn').addEventListener('click', () => selectMode('SEASON'));
+    $('season-resume-btn').addEventListener('click', () => showSeasonHub());
+    // Leave the current game (a season game stays unplayed on the schedule)
+    $('menu-btn').addEventListener('click', () => {
+        if (gameMode === 'ONLINE') return;
+        if (seasonGame) { if (window.confirm('Leave this game? It stays on your schedule unplayed.')) abandonSeasonGame(); return; }
+        if (!window.confirm('Quit this game and return to the menu?')) return;
+        stopGame();
+        overlayMenu.classList.remove('hidden');
+    });
     mode1PBtn.addEventListener('click', () => selectMode('1P'));
     mode2PBtn.addEventListener('click', () => selectMode('2P'));
     modeMPBtn.addEventListener('click', () => selectMode('ONLINE'));
@@ -1852,15 +1959,22 @@
     // =====================================================================================
     //  GAME FLOW
     // =====================================================================================
-    function startGame(selectedTeam) {
+    // opts (season games): { opponent, userHome, playoff }
+    function startGame(selectedTeam, opts) {
         const online = gameMode === 'ONLINE';
         if (online && !(net.role === 'host' && net.connected && lobbyTeams.HOME >= 0 && lobbyTeams.AWAY >= 0)) return;
         sfx.init();
         gameGen++;
+        if (!opts) seasonGame = null;
+        venueHome = opts ? !!opts.userHome : true;
+        isPlayoffGame = !!(opts && opts.playoff);
 
         if (online) {
             userTeam = nfl2026Teams[lobbyTeams.HOME];
             aiTeam = nfl2026Teams[lobbyTeams.AWAY];
+        } else if (opts && opts.opponent) {
+            userTeam = selectedTeam;
+            aiTeam = opts.opponent;
         } else {
             userTeam = selectedTeam || nfl2026Teams[0];
             const others = nfl2026Teams.filter(t => t.name !== userTeam.name);
@@ -1996,8 +2110,10 @@
             isDefense = (gameMode === '1P' && possession === 'AWAY');
             updateHUD();
             showBigMessage('HALFTIME', '#fbbf24', () => setupKickoff(65), 2800, `${userTeam.abbr} ${scoreHome} - ${aiTeam.abbr} ${scoreAway} • ${getOffenseTeam().name} RECEIVES`);
-        } else if (quarter === 4 && scoreHome === scoreAway) {
-            quarter = 5;
+        } else if ((quarter === 4 || (quarter >= 5 && isPlayoffGame)) && scoreHome === scoreAway) {
+            // Regular season: one overtime period, ties allowed. Playoffs: keep playing until someone wins.
+            const extra = quarter >= 5;
+            quarter = extra ? quarter + 1 : 5;
             isOvertime = true;
             gameClock = Math.max(120, Math.round(quarterSeconds() * 2 / 3));
             twoMinWarned = true;
@@ -2006,7 +2122,7 @@
             possession = Math.random() < 0.5 ? 'HOME' : 'AWAY';
             isDefense = (gameMode === '1P' && possession === 'AWAY');
             updateHUD();
-            showBigMessage('OVERTIME!', '#fbbf24', () => setupKickoff(65), 2600, `BOTH TEAMS GET THE BALL • ${getOffenseTeam().name} RECEIVES`);
+            showBigMessage(extra ? 'ANOTHER OVERTIME!' : 'OVERTIME!', '#fbbf24', () => setupKickoff(65), 2600, `BOTH TEAMS GET THE BALL • ${getOffenseTeam().name} RECEIVES`);
         } else {
             endGame(quarter >= 5 ? 'END OF OVERTIME' : 'FINAL');
         }
@@ -2023,6 +2139,7 @@
         else if (scoreAway > scoreHome) { winMsg = `${aiTeam.name} WINS!`; winColor = aiTeam.p; }
 
         showBigMessage(reasonMessage, '#fbbf24', () => {
+            if (seasonGame) { finishSeasonGame(); return; }
             const box = boxScoreText();
             emit({ k: 'over', title: winMsg, color: winColor, sub: box });
             showGameOver(winMsg, winColor, gameMode === 'ONLINE' ? box : `${box}\nClick any team to play again!`);
@@ -4101,7 +4218,7 @@
         hudState.sa = scoreAway;
         hudState.toH = timeouts.HOME;
         hudState.toA = timeouts.AWAY;
-        hudState.q = quarter >= 5 ? 'OT' : ['1ST', '2ND', '3RD', '4TH'][quarter - 1];
+        hudState.q = quarter >= 5 ? (quarter === 5 ? 'OT' : `${quarter - 4}OT`) : ['1ST', '2ND', '3RD', '4TH'][quarter - 1];
         if (isReturn) {
             hudState.dd = 'RETURN';
             hudState.yd = '';
@@ -4170,6 +4287,469 @@
     }
 
     // =====================================================================================
+    //  SEASON MODE: AFC / NFC, 17-game schedule, standings, playoffs and the Super Bowl
+    // =====================================================================================
+    const SEASON_KEY = 'blitzbreaker-season-v1';
+    const ROUND_NAMES = ['WILD CARD ROUND', 'DIVISIONAL ROUND', 'CONFERENCE CHAMPIONSHIPS', 'SUPER BOWL'];
+
+    const teamByAbbr = (a) => nfl2026Teams.find(t => t.abbr === a);
+    const divisionOf = (a) => Object.keys(DIVISIONS).find(d => DIVISIONS[d].includes(a));
+    const conferenceOf = (a) => (divisionOf(a) || 'AFC').slice(0, 3);
+
+    let season = null;      // Saved season state
+    let seasonGame = null;  // The season game being played right now
+    let venueHome = true;   // The HOME slot (user's team) is the real home team (false = user plays on the road)
+    let isPlayoffGame = false;
+
+    function saveSeason() {
+        try { localStorage.setItem(SEASON_KEY, JSON.stringify(season)); } catch (e) {}
+    }
+    function loadSeason() {
+        try {
+            const s = JSON.parse(localStorage.getItem(SEASON_KEY) || 'null');
+            if (s && s.team && Array.isArray(s.weeks) && teamByAbbr(s.team)) return s;
+        } catch (e) {}
+        return null;
+    }
+
+    function shuffle(a) {
+        for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+    }
+
+    // NFL-style formula: 6 division games, a full rotation against a division in your conference and one in the
+    // other conference, plus 3 more (2 same conference, 1 other) = 17 games; all 32 teams play every week
+    function buildSchedule() {
+        const divs = Object.values(DIVISIONS); // 0-3 AFC E/N/S/W, 4-7 NFC E/N/S/W
+        const weeks = [];
+        const rr = [[[0, 1], [2, 3]], [[0, 2], [1, 3]], [[0, 3], [1, 2]]];
+        for (let leg = 0; leg < 2; leg++) {
+            for (let r = 0; r < 3; r++) {
+                const wk = [];
+                divs.forEach(d => rr[r].forEach(([i, j]) => wk.push(leg === 0 ? { h: d[i], a: d[j] } : { h: d[j], a: d[i] })));
+                weeks.push(wk);
+            }
+        }
+        const cross = (pairs, rounds) => {
+            for (const r of rounds) {
+                const wk = [];
+                pairs.forEach(([A, B]) => {
+                    for (let i = 0; i < 4; i++) {
+                        const j = (i + r) % 4;
+                        wk.push((i + r) % 2 === 0 ? { h: divs[A][i], a: divs[B][j] } : { h: divs[B][j], a: divs[A][i] });
+                    }
+                });
+                weeks.push(wk);
+            }
+        };
+        cross([[0, 1], [2, 3], [4, 5], [6, 7]], [0, 1, 2, 3]);
+        cross([[0, 4], [1, 5], [2, 6], [3, 7]], [0, 1, 2, 3]);
+        cross([[0, 2], [1, 3], [4, 6], [5, 7]], [0, 1]);
+        cross([[0, 5], [1, 6], [2, 7], [3, 4]], [0]);
+        // Balance home games: division games are 3 home / 3 away; flip other games toward 8-9 home each
+        const home = {};
+        const all = weeks.flat();
+        for (const g of all) home[g.h] = (home[g.h] || 0) + (divisionOf(g.h) === divisionOf(g.a) ? 1 : 0);
+        const nonDiv = all.filter(g => divisionOf(g.h) !== divisionOf(g.a));
+        for (const g of shuffle(nonDiv.slice())) {
+            if ((home[g.a] || 0) < (home[g.h] || 0) || ((home[g.a] || 0) === (home[g.h] || 0) && Math.random() < 0.5)) {
+                const t = g.h; g.h = g.a; g.a = t;
+            }
+            home[g.h] = (home[g.h] || 0) + 1;
+        }
+        // Then flip any game whose home team has 2+ more home games than its opponent, until balanced
+        for (let pass = 0, changed = true; changed && pass < 60; pass++) {
+            changed = false;
+            for (const g of shuffle(nonDiv.slice())) {
+                if (home[g.h] - home[g.a] >= 2) {
+                    home[g.h]--; home[g.a]++;
+                    const t = g.h; g.h = g.a; g.a = t;
+                    changed = true;
+                }
+            }
+        }
+        return shuffle(weeks).map(wk => wk.map(g => ({ h: g.h, a: g.a, hs: null, as: null })));
+    }
+
+    function startNewSeason(team) {
+        season = { team: team.abbr, week: 0, weeks: buildSchedule(), phase: 'regular', playoffs: null, champion: null, lastResults: [] };
+        saveSeason();
+        showSeasonHub();
+    }
+
+    // --- Simulated games ---
+    const SCORE_SET = [0, 3, 6, 7, 9, 10, 13, 14, 16, 17, 19, 20, 21, 23, 24, 26, 27, 28, 30, 31, 33, 34, 35, 37, 38, 41, 42, 45, 48];
+    function snapScore(v) {
+        let best = 0;
+        for (const s of SCORE_SET) if (Math.abs(s - v) < Math.abs(best - v)) best = s;
+        return best;
+    }
+    function simGame(g, playoff, neutral) {
+        const rh = TEAM_RATING[g.h] || 78;
+        const ra = TEAM_RATING[g.a] || 78;
+        const edge = neutral ? 0 : 1.3;
+        g.hs = snapScore(clamp(22 + (rh - ra) * 0.45 + edge + gauss() * 9.5, 0, 50));
+        g.as = snapScore(clamp(22 + (ra - rh) * 0.45 - edge + gauss() * 9.5, 0, 50));
+        if (g.hs === g.as && (playoff || Math.random() < 0.88)) {
+            if (Math.random() < 0.5 + (rh - ra) * 0.012) g.hs += 3; else g.as += 3;
+        }
+    }
+
+    // --- Standings & seeding ---
+    function computeStandings() {
+        const st = {};
+        for (const t of nfl2026Teams) st[t.abbr] = { abbr: t.abbr, w: 0, l: 0, t: 0, pf: 0, pa: 0, dw: 0, dl: 0 };
+        for (const wk of season.weeks) {
+            for (const g of wk) {
+                if (g.hs === null) continue;
+                const H = st[g.h];
+                const A = st[g.a];
+                H.pf += g.hs; H.pa += g.as; A.pf += g.as; A.pa += g.hs;
+                const sameDiv = divisionOf(g.h) === divisionOf(g.a);
+                if (g.hs > g.as) { H.w++; A.l++; if (sameDiv) { H.dw++; A.dl++; } }
+                else if (g.as > g.hs) { A.w++; H.l++; if (sameDiv) { A.dw++; H.dl++; } }
+                else { H.t++; A.t++; }
+            }
+        }
+        return st;
+    }
+    const pct = (r) => (r.w + r.l + r.t ? (r.w + r.t * 0.5) / (r.w + r.l + r.t) : 0);
+    const recordText = (r) => `${r.w}-${r.l}${r.t ? '-' + r.t : ''}`;
+    function rankTeams(list, st) {
+        return list.slice().sort((x, y) => (pct(st[y]) - pct(st[x])) || ((st[y].dw - st[y].dl) - (st[x].dw - st[x].dl))
+            || ((st[y].pf - st[y].pa) - (st[x].pf - st[x].pa)) || ((TEAM_RATING[y] || 0) - (TEAM_RATING[x] || 0)));
+    }
+    // 7 seeds per conference: 4 division winners, then 3 wild cards
+    function seedConference(conf, st) {
+        const divs = Object.keys(DIVISIONS).filter(d => d.startsWith(conf));
+        const winners = rankTeams(divs.map(d => rankTeams(DIVISIONS[d], st)[0]), st);
+        const rest = rankTeams(divs.flatMap(d => DIVISIONS[d]).filter(a => !winners.includes(a)), st);
+        return winners.concat(rest.slice(0, 3));
+    }
+
+    // --- Playoffs ---
+    function startPlayoffs() {
+        const st = computeStandings();
+        const seeds = { AFC: seedConference('AFC', st), NFC: seedConference('NFC', st) };
+        season.phase = 'playoffs';
+        season.playoffs = { seeds, round: 0, rounds: [] };
+        const wc = [];
+        for (const conf of ['AFC', 'NFC']) {
+            const s = seeds[conf];
+            [[1, 6], [2, 5], [3, 4]].forEach(([i, j]) => wc.push({ h: s[i], a: s[j], hs: null, as: null, conf }));
+        }
+        season.playoffs.rounds.push(wc);
+    }
+    function seedOf(abbr) {
+        const s = season.playoffs.seeds[conferenceOf(abbr)];
+        return s.indexOf(abbr) + 1;
+    }
+    const winnerOf = (g) => (g.hs > g.as ? g.h : g.a);
+    function nextPlayoffRound() {
+        const P = season.playoffs;
+        const done = P.rounds[P.round];
+        const next = [];
+        if (P.round === 0 || P.round === 1) {
+            for (const conf of ['AFC', 'NFC']) {
+                let alive = done.filter(g => g.conf === conf).map(winnerOf);
+                if (P.round === 0) alive.push(P.seeds[conf][0]); // The top seed had the bye
+                alive.sort((x, y) => seedOf(x) - seedOf(y));
+                if (P.round === 0) {
+                    next.push({ h: alive[0], a: alive[3], hs: null, as: null, conf });
+                    next.push({ h: alive[1], a: alive[2], hs: null, as: null, conf });
+                } else {
+                    next.push({ h: alive[0], a: alive[1], hs: null, as: null, conf });
+                }
+            }
+        } else if (P.round === 2) {
+            const afc = winnerOf(done.find(g => g.conf === 'AFC'));
+            const nfc = winnerOf(done.find(g => g.conf === 'NFC'));
+            const st = computeStandings();
+            const [h, a] = rankTeams([afc, nfc], st);
+            next.push({ h, a, hs: null, as: null, conf: 'SB', neutral: true });
+        } else {
+            season.champion = winnerOf(done[0]);
+            season.phase = 'done';
+            return;
+        }
+        P.round++;
+        P.rounds.push(next);
+    }
+
+    // The user's game this week / round (null = none: eliminated, bye or season over)
+    function currentGames() {
+        if (season.phase === 'regular') return season.weeks[season.week];
+        if (season.phase === 'playoffs') return season.playoffs.rounds[season.playoffs.round];
+        return [];
+    }
+    function userGame() {
+        return currentGames().find(g => g.hs === null && (g.h === season.team || g.a === season.team)) || null;
+    }
+
+    // Finish the week/round: simulate every other game, then advance
+    function completeWeek() {
+        const playoff = season.phase === 'playoffs';
+        const games = currentGames();
+        for (const g of games) if (g.hs === null) simGame(g, playoff, !!g.neutral);
+        season.lastResults = games.map(g => ({ h: g.h, a: g.a, hs: g.hs, as: g.as }));
+        season.lastLabel = playoff ? ROUND_NAMES[season.playoffs.round] : `WEEK ${season.week + 1}`;
+        if (!playoff) {
+            season.week++;
+            if (season.week >= season.weeks.length) startPlayoffs();
+        } else {
+            nextPlayoffRound();
+        }
+        saveSeason();
+    }
+
+    function simUserGame() {
+        const g = userGame();
+        if (g) simGame(g, season.phase === 'playoffs', !!g.neutral);
+        completeWeek();
+        showSeasonHub();
+    }
+    function simRestOfSeason() {
+        let guard = 0;
+        while (season.phase !== 'done' && guard++ < 40) {
+            const g = userGame();
+            if (g) simGame(g, season.phase === 'playoffs', !!g.neutral);
+            completeWeek();
+        }
+        showSeasonHub();
+    }
+
+    function playUserGame() {
+        const g = userGame();
+        if (!g) return;
+        const userHome = g.h === season.team;
+        seasonGame = g;
+        overlaySeason.classList.add('hidden');
+        gameMode = '1P';
+        startGame(teamByAbbr(season.team), {
+            opponent: teamByAbbr(userHome ? g.a : g.h),
+            userHome,
+            playoff: season.phase === 'playoffs'
+        });
+    }
+
+    // Called from endGame for a season game; the user's team is always the HOME slot in the engine
+    function finishSeasonGame() {
+        const g = seasonGame;
+        seasonGame = null;
+        if (!season || !g) { showSeasonHub(); return; }
+        if (g.h === season.team) { g.hs = scoreHome; g.as = scoreAway; }
+        else { g.as = scoreHome; g.hs = scoreAway; }
+        completeWeek();
+        hud.style.display = 'none';
+        showSeasonHub();
+    }
+
+    // Leaving a season game early: the game stays on the schedule, unplayed
+    function abandonSeasonGame() {
+        seasonGame = null;
+        stopGame();
+        showSeasonHub();
+    }
+
+    // --- Season hub screen ---
+    const overlaySeason = $('overlay-season');
+    const seasonContent = $('season-content');
+    function el(tag, cls, text) {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text !== undefined) e.textContent = text;
+        return e;
+    }
+    function teamChip(abbr, st, extra) {
+        const t = teamByAbbr(abbr);
+        const chip = el('span', 'team-chip' + (abbr === season.team ? ' mine' : ''));
+        chip.style.background = t.p;
+        chip.style.borderColor = t.s;
+        chip.textContent = abbr;
+        const wrap = el('span', 'chip-wrap');
+        wrap.appendChild(chip);
+        if (st) wrap.appendChild(el('span', 'chip-rec', recordText(st[abbr]) + (extra || '')));
+        return wrap;
+    }
+
+    function showSeasonHub() {
+        if (!season) season = loadSeason();
+        if (!season) { overlayMenu.classList.remove('hidden'); return; }
+        gameState = 'MENU';
+        hud.style.display = 'none';
+        overlayMenu.classList.add('hidden');
+        overlaySeason.classList.remove('hidden');
+        seasonContent.textContent = '';
+        const st = computeStandings();
+        const me = teamByAbbr(season.team);
+
+        // Header
+        const head = el('div', 'season-head');
+        head.style.borderColor = me.p;
+        const title = el('div', 'season-title', `${me.name} • ${recordText(st[season.team])}`);
+        let phaseText;
+        if (season.phase === 'regular') phaseText = `${divisionOf(season.team)} • WEEK ${season.week + 1} OF ${season.weeks.length}`;
+        else if (season.phase === 'playoffs') phaseText = `PLAYOFFS • ${ROUND_NAMES[season.playoffs.round]}`;
+        else phaseText = `SEASON COMPLETE • SUPER BOWL CHAMPION: ${teamByAbbr(season.champion).name}`;
+        head.appendChild(title);
+        head.appendChild(el('div', 'season-phase', phaseText));
+        seasonContent.appendChild(head);
+
+        // Next game
+        const next = el('div', 'season-next');
+        const g = userGame();
+        if (g) {
+            const home = g.h === season.team;
+            const opp = home ? g.a : g.h;
+            const label = season.phase === 'playoffs'
+                ? `${ROUND_NAMES[season.playoffs.round]}: (${seedOf(season.team)}) ${me.abbr} ${g.neutral ? 'vs' : (home ? 'vs' : '@')} (${seedOf(opp)}) ${teamByAbbr(opp).name}`
+                : `NEXT: ${home ? 'vs' : '@'} ${teamByAbbr(opp).name} (${recordText(st[opp])})`;
+            next.appendChild(el('div', 'season-next-label', label));
+            const row = el('div', 'season-btn-row');
+            const play = el('button', 'arcade-btn', 'PLAY GAME');
+            play.addEventListener('click', playUserGame);
+            const sim = el('button', 'season-btn', 'SIM GAME');
+            sim.addEventListener('click', simUserGame);
+            row.appendChild(play);
+            row.appendChild(sim);
+            if (season.phase === 'regular') {
+                const rest = el('button', 'season-btn', 'SIM TO PLAYOFFS');
+                rest.addEventListener('click', () => {
+                    while (season.phase === 'regular') {
+                        const ug = userGame();
+                        if (ug) simGame(ug, false, false);
+                        completeWeek();
+                    }
+                    showSeasonHub();
+                });
+                row.appendChild(rest);
+            }
+            next.appendChild(row);
+        } else if (season.phase === 'playoffs') {
+            const made = season.playoffs.seeds.AFC.includes(season.team) || season.playoffs.seeds.NFC.includes(season.team);
+            next.appendChild(el('div', 'season-next-label', made ? `${me.name} ARE OUT OF THE PLAYOFFS` : `${me.name} MISSED THE PLAYOFFS`));
+            const row = el('div', 'season-btn-row');
+            const nextR = el('button', 'season-btn', `SIM ${ROUND_NAMES[season.playoffs.round]}`);
+            nextR.addEventListener('click', () => { completeWeek(); showSeasonHub(); });
+            const all = el('button', 'season-btn', 'SIM TO SUPER BOWL');
+            all.addEventListener('click', simRestOfSeason);
+            row.appendChild(nextR);
+            row.appendChild(all);
+            next.appendChild(row);
+        } else if (season.phase === 'done') {
+            const won = season.champion === season.team;
+            next.appendChild(el('div', 'season-next-label', won ? `🏆 ${me.name} WIN THE SUPER BOWL!` : `${teamByAbbr(season.champion).name} WIN THE SUPER BOWL`));
+        }
+        seasonContent.appendChild(next);
+
+        // Last week's scores
+        if (season.lastResults && season.lastResults.length) {
+            const box = el('div', 'season-section');
+            box.appendChild(el('div', 'season-section-title', `${season.lastLabel || 'LAST WEEK'} SCORES`));
+            const grid = el('div', 'score-grid');
+            for (const r of season.lastResults) {
+                const cell = el('div', 'score-cell' + (r.h === season.team || r.a === season.team ? ' mine' : ''));
+                cell.textContent = `${r.a} ${r.as} @ ${r.h} ${r.hs}`;
+                grid.appendChild(cell);
+            }
+            box.appendChild(grid);
+            seasonContent.appendChild(box);
+        }
+
+        // Playoff bracket so far
+        if (season.playoffs) {
+            const box = el('div', 'season-section');
+            box.appendChild(el('div', 'season-section-title', 'PLAYOFF PICTURE'));
+            for (const conf of ['AFC', 'NFC']) {
+                const line = el('div', 'seed-line');
+                line.appendChild(el('span', 'seed-conf', conf));
+                season.playoffs.seeds[conf].forEach((a, i) => {
+                    const chip = teamChip(a);
+                    chip.insertBefore(el('span', 'seed-num', String(i + 1)), chip.firstChild);
+                    line.appendChild(chip);
+                });
+                box.appendChild(line);
+            }
+            season.playoffs.rounds.forEach((games, ri) => {
+                const line = el('div', 'bracket-line');
+                line.appendChild(el('span', 'seed-conf', ROUND_NAMES[ri].replace(' ROUND', '').replace('CONFERENCE CHAMPIONSHIPS', 'CONF CHAMP')));
+                for (const gm of games) {
+                    const txt = gm.hs === null ? `${gm.a} @ ${gm.h}` : `${gm.a} ${gm.as} @ ${gm.h} ${gm.hs}`;
+                    line.appendChild(el('span', 'score-cell' + (gm.h === season.team || gm.a === season.team ? ' mine' : ''), txt));
+                }
+                box.appendChild(line);
+            });
+            seasonContent.appendChild(box);
+        }
+
+        // Standings
+        const stand = el('div', 'season-section');
+        stand.appendChild(el('div', 'season-section-title', 'STANDINGS'));
+        const confs = el('div', 'conf-grid');
+        for (const conf of ['AFC', 'NFC']) {
+            const col = el('div', 'conf-col');
+            col.appendChild(el('div', 'conf-title', conf));
+            for (const d of Object.keys(DIVISIONS).filter(x => x.startsWith(conf))) {
+                const dv = el('div', 'div-block');
+                dv.appendChild(el('div', 'div-title', d.slice(4)));
+                for (const a of rankTeams(DIVISIONS[d], st)) {
+                    const r = st[a];
+                    const row = el('div', 'std-row' + (a === season.team ? ' mine' : ''));
+                    row.appendChild(teamChip(a));
+                    row.appendChild(el('span', 'std-name', teamByAbbr(a).name));
+                    row.appendChild(el('span', 'std-rec', recordText(r)));
+                    row.appendChild(el('span', 'std-diff', `${r.pf - r.pa >= 0 ? '+' : ''}${r.pf - r.pa}`));
+                    dv.appendChild(row);
+                }
+                col.appendChild(dv);
+            }
+            confs.appendChild(col);
+        }
+        stand.appendChild(confs);
+        seasonContent.appendChild(stand);
+
+        // Footer
+        const foot = el('div', 'season-btn-row');
+        const menu = el('button', 'season-btn', 'MAIN MENU');
+        menu.addEventListener('click', () => { overlaySeason.classList.add('hidden'); overlayMenu.classList.remove('hidden'); renderSeasonBox(); });
+        const fresh = el('button', 'season-btn', 'NEW SEASON');
+        fresh.addEventListener('click', () => {
+            if (season.phase !== 'done' && !window.confirm('Start over? This season will be deleted.')) return;
+            season = null;
+            try { localStorage.removeItem(SEASON_KEY); } catch (e) {}
+            overlaySeason.classList.add('hidden');
+            overlayMenu.classList.remove('hidden');
+            selectMode('SEASON');
+        });
+        foot.appendChild(menu);
+        foot.appendChild(fresh);
+        seasonContent.appendChild(foot);
+        overlaySeason.scrollTop = 0;
+    }
+
+    // Menu box for season mode: resume an existing season
+    function renderSeasonBox() {
+        const box = $('season-box');
+        const s = season || loadSeason();
+        if (s) season = s;
+        const text = $('season-box-text');
+        const resume = $('season-resume-btn');
+        if (s) {
+            const st = computeStandings();
+            const where = s.phase === 'regular' ? `WEEK ${s.week + 1}` : (s.phase === 'playoffs' ? 'PLAYOFFS' : 'SEASON OVER');
+            text.textContent = `Saved season: ${teamByAbbr(s.team).name} ${recordText(st[s.team])} • ${where}. Or pick a team below to start a new season.`;
+            resume.classList.remove('hidden');
+        } else {
+            text.textContent = 'Pick your team below: 17 games, division standings, playoffs and the Super Bowl. Play or sim each week.';
+            resume.classList.add('hidden');
+        }
+        box.classList.toggle('hidden', !seasonMenu);
+    }
+
+    // =====================================================================================
     //  RENDERING
     // =====================================================================================
     const ZS = 0.6; // Screen pixels per yard of height, relative to ppy (the 3D camera adds the perspective)
@@ -4227,10 +4807,13 @@
         crowdPattern = ctx.createPattern(crowd, 'repeat');
     }
 
+    // The real home team (season road games put the user's team, the engine's HOME slot, on the road)
+    const venueTeam = () => (venueHome ? userTeam : aiTeam);
+    const visitorTeam = () => (venueHome ? aiTeam : userTeam);
     function uniformFor(tm) {
         const t = teamByTm(tm);
         const x = UNIFORM_EXTRA[t.abbr] || { helm: t.p, stripe: t.s, pants: '#ffffff', mask: '#9ca3af' };
-        if (tm === 0) {
+        if ((tm === 0) === venueHome) {
             return { jersey: t.p, trim: t.s, helm: x.helm, stripe: x.stripe, mask: x.mask, pants: x.pants, num: '#ffffff' };
         }
         return { jersey: '#f8fafc', trim: t.p, helm: x.helm, stripe: x.stripe, mask: x.mask, pants: x.pants === '#ffffff' ? t.p : x.pants, num: t.p };
@@ -4255,7 +4838,7 @@
             if (standR < canvas.width) ctx.fillRect(standR, yTop, canvas.width - standR, yBot - yTop);
         }
         // Stadium wall padding in home colors
-        ctx.fillStyle = userTeam.p;
+        ctx.fillStyle = venueTeam().p;
         ctx.fillRect(standL - ppy * 0.5, yTop, ppy * 0.5, yBot - yTop);
         ctx.fillRect(standR, yTop, ppy * 0.5, yBot - yTop);
 
@@ -4276,10 +4859,10 @@
         ctx.fillStyle = 'rgba(255,255,255,0.06)';
         ctx.fillRect(left - ppy * 8.5, y30b, ppy * 5.5, y30a - y30b);
         ctx.fillRect(right + ppy * 3, y30b, ppy * 5.5, y30a - y30b);
-        ctx.fillStyle = userTeam.p;
+        ctx.fillStyle = venueTeam().p;
         ctx.globalAlpha = 0.55;
         ctx.fillRect(left - ppy * 8.2, getScreenY(60), ppy * 1.4, getScreenY(40) - getScreenY(60));
-        ctx.fillStyle = aiTeam.p;
+        ctx.fillStyle = visitorTeam().p;
         ctx.fillRect(right + ppy * 6.8, getScreenY(60), ppy * 1.4, getScreenY(40) - getScreenY(60));
         ctx.globalAlpha = 1;
         ctx.strokeStyle = '#facc15';
@@ -4390,18 +4973,18 @@
             ctx.save();
             ctx.beginPath();
             ctx.ellipse(getScreenX(MID), my, ppy * 4.2, ppy * 4.2, 0, 0, Math.PI * 2);
-            ctx.fillStyle = userTeam.p;
+            ctx.fillStyle = venueTeam().p;
             ctx.globalAlpha = 0.85;
             ctx.fill();
             ctx.globalAlpha = 1;
             ctx.lineWidth = ppy * 0.35;
-            ctx.strokeStyle = userTeam.s;
+            ctx.strokeStyle = venueTeam().s;
             ctx.stroke();
             ctx.fillStyle = '#ffffff';
             ctx.font = `700 ${ppy * 2.6}px Oswald, 'Russo One', sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(userTeam.abbr, getScreenX(MID), my + ppy * 0.1);
+            ctx.fillText(venueTeam().abbr, getScreenX(MID), my + ppy * 0.1);
             ctx.restore();
         }
 
@@ -4885,7 +5468,7 @@
         if (gameState !== 'GAME_OVER') {
             hudState.clk = formatClock(gameClock);
             hudState.pc = gameState === 'PRE_SNAP' ? String(Math.max(0, playClock)) : '';
-            hudState.q = quarter >= 5 ? 'OT' : ['1ST', '2ND', '3RD', '4TH'][quarter - 1];
+            hudState.q = quarter >= 5 ? (quarter === 5 ? 'OT' : `${quarter - 4}OT`) : ['1ST', '2ND', '3RD', '4TH'][quarter - 1];
         }
         update();
     }
@@ -5413,16 +5996,23 @@
     }
 
     function renderHUD(h) {
-        setText($('sb-home-abbr'), 'ha', userTeam.abbr);
-        setText($('sb-away-abbr'), 'aa', aiTeam.abbr);
-        setStyle($('sb-home'), 'hb', 'background', `linear-gradient(90deg, ${userTeam.p}, ${userTeam.p}cc)`);
-        setStyle($('sb-away'), 'ab', 'background', `linear-gradient(90deg, ${aiTeam.p}, ${aiTeam.p}cc)`);
-        setText($('sb-home-score'), 'hs', String(Number(h.sh) || 0));
-        setText($('sb-away-score'), 'as', String(Number(h.sa) || 0));
-        setTimeoutDots($('sb-home-tos'), 'ht', h.toH);
-        setTimeoutDots($('sb-away-tos'), 'at', h.toA);
-        $('sb-home-poss').classList.toggle('on', possession === 'HOME' && gameState !== 'GAME_OVER');
-        $('sb-away-poss').classList.toggle('on', possession === 'AWAY' && gameState !== 'GAME_OVER');
+        // Visitors on the left, home team on the right (on a season road game the user's HOME slot is the visitor)
+        const homeSlot = venueHome ? 'HOME' : 'AWAY';
+        const hT = sideTeam(homeSlot);
+        const aT = sideTeam(other(homeSlot));
+        const slotScore = (slot) => String(Number(slot === 'HOME' ? h.sh : h.sa) || 0);
+        const slotTOs = (slot) => (slot === 'HOME' ? h.toH : h.toA);
+        setText($('sb-home-abbr'), 'ha', hT.abbr);
+        setText($('sb-away-abbr'), 'aa', aT.abbr);
+        setStyle($('sb-home'), 'hb', 'background', `linear-gradient(90deg, ${hT.p}, ${hT.p}cc)`);
+        setStyle($('sb-away'), 'ab', 'background', `linear-gradient(90deg, ${aT.p}, ${aT.p}cc)`);
+        setText($('sb-home-score'), 'hs', slotScore(homeSlot));
+        setText($('sb-away-score'), 'as', slotScore(other(homeSlot)));
+        setTimeoutDots($('sb-home-tos'), 'ht', slotTOs(homeSlot));
+        setTimeoutDots($('sb-away-tos'), 'at', slotTOs(other(homeSlot)));
+        $('sb-home-poss').classList.toggle('on', possession === homeSlot && gameState !== 'GAME_OVER');
+        $('sb-away-poss').classList.toggle('on', possession !== homeSlot && gameState !== 'GAME_OVER');
+        $('menu-btn').classList.toggle('hidden', gameMode === 'ONLINE');
         setText(qtrDisplay, 'q', String(h.q || ''));
         setText(timerDisplay, 'clk', String(h.clk || ''));
         setText(downDisplay, 'dd', String(h.dd || ''));
