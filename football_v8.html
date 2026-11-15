@@ -371,8 +371,9 @@
     </div>
 
     <!-- Playcalling & Pre-Snap Overlay -->
-    <div id="overlay-snap" class="interactive-overlay hidden" style="background: transparent; backdrop-filter: none; justify-content: flex-end; padding-bottom: 76px;">
-        <div id="playcall-container" class="bg-slate-900/95 border-2 border-slate-500 rounded-2xl p-3 max-w-3xl w-full shadow-2xl mb-3">
+    <div id="overlay-snap" class="interactive-overlay hidden" style="background: transparent; backdrop-filter: none; justify-content: space-between; padding-top: 70px; padding-bottom: 76px;">
+        <!-- Play card panel sits at the top so the formation stays visible below it -->
+        <div id="playcall-container" class="bg-slate-900/90 border-2 border-slate-500 rounded-2xl p-3 max-w-3xl w-full shadow-2xl">
             <div id="playcall-title" class="text-center text-amber-400 text-sm md:text-base mb-2">CHOOSE YOUR PLAY</div>
             <div id="playcall-grid" class="grid grid-cols-3 md:grid-cols-6 gap-2"></div>
         </div>
@@ -1355,9 +1356,10 @@
     function resize() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-        ppy = Math.min(canvas.width / (W + 8), canvas.height / 34);
-        // Portrait phones: zoom in to ~34 yards across and let the camera pan sideways
-        if (canvas.width < 640 && canvas.height > canvas.width) ppy = Math.max(ppy, canvas.width / 34);
+        // Broadcast-style zoom: ~25 yards top to bottom; the camera pans sideways when the field is wider than the screen
+        ppy = Math.min(canvas.width / (W + 8), canvas.height / 34) * 1.35;
+        // Portrait phones: ~26 yards across
+        if (canvas.width < 640 && canvas.height > canvas.width) ppy = Math.max(ppy, canvas.width / 26);
         buildTextures();
     }
     window.addEventListener('resize', resize);
@@ -2306,7 +2308,7 @@
         }
         setupFormationEntities();
         gameState = 'PRE_SNAP';
-        camFocusY = lineOfScrimmage + 4;
+        camFocusY = lineOfScrimmage - 3; // Formation mid-screen, below the play-call panel
         camCut++;
         updateHUD();
         aiMaybeTimeout();
@@ -2941,7 +2943,7 @@
                 preSnapFrames++;
                 if (preSnapFrames % 60 === 0) playClock--;
                 if (playClock <= 0) handlePlayClockExpired();
-                camFocusY = lineOfScrimmage + 4;
+                camFocusY = lineOfScrimmage - 3; // Formation mid-screen, below the play-call panel
                 return;
             case 'PUNT_AIMING':
                 preSnapFrames++;
@@ -4016,7 +4018,7 @@
     // Runs on every client each frame, following the focus the simulation asked for
     let lastCamCut = -1;
     function updateCamera(dt) {
-        const desiredScreenY = canvas.height * 0.72;
+        const desiredScreenY = canvas.height * 0.76; // Ball low on screen: more of the field ahead stays in view
         const targetY = camFocusY !== null ? camFocusY : (player ? player.y : lineOfScrimmage);
         const targetCameraY = targetY - ((canvas.height - desiredScreenY) / ppy);
 
@@ -4423,7 +4425,7 @@
         const sy = getScreenY(e.y);
         if (sx < -ppy * 3 || sx > canvas.width + ppy * 3 || sy < -ppy * 3 || sy > canvas.height + ppy * 3) return;
         const u = uniformFor(e.tm);
-        const s = ppy * 1.4;
+        const s = ppy * 1.6;
         const ang = -e.face;
         const spdFrac = clamp(e.sf !== undefined ? e.sf : speedOf(e) / (e.spd || 0.16), 0, 1);
         const seed = (parseInt(e.no, 10) || 7) * 0.77;
