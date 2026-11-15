@@ -889,6 +889,113 @@
     ];
 
 
+    // The other 20 teams. Each roster lists, in order: QB, RB, WR1, WR2, SLOT, TE, LT, LG, C, RG, RT,
+    // LDE, DT, NT, RDE, WLB, MLB, SLB, CB, CB, NCB, FS, K, P ("number NAME")
+    function rosterTeam(name, abbr, p, s, r) {
+        const P = (str, pos) => {
+            const i = str.indexOf(' ');
+            return { no: str.slice(0, i), nm: str.slice(i + 1), pos };
+        };
+        return {
+            name, abbr, p, s,
+            roster: {
+                qb: P(r[0], 'QB'), rb: P(r[1], 'RB'), wr1: P(r[2], 'WR'), wr2: P(r[3], 'WR'), wr3: P(r[4], 'SLOT'), te: P(r[5], 'TE'),
+                ol: ['LT', 'LG', 'C', 'RG', 'RT'].map((pos, i) => P(r[6 + i], pos)),
+                dl: ['LDE', 'DT', 'NT', 'RDE'].map((pos, i) => P(r[11 + i], pos)),
+                lb: ['WLB', 'MLB', 'SLB'].map((pos, i) => P(r[15 + i], pos)),
+                db: ['CB', 'CB', 'NCB', 'FS'].map((pos, i) => P(r[18 + i], pos)),
+                k: P(r[22], 'K'), p: P(r[23], 'P')
+            }
+        };
+    }
+    nfl2026Teams.push(
+        rosterTeam('ARIZONA', 'ARI', '#97233f', '#000000', ['1 MURRAY', '6 CONNER', '18 HARRISON JR.', '4 WILSON', '15 DORTCH', '85 MCBRIDE',
+            '70 JOHNSON JR.', '63 BROWN', '72 FROHOLDT', '73 WILLIAMS', '68 BEACHUM', '9 SWEAT', '93 CAMPBELL', '90 NOLEN', '94 ROBINSON',
+            '2 WILSON SR.', '25 COLLINS', '10 DAVIS-GAITHER', '21 WILLIAMS', '0 JOHNSON', '16 MELTON', '3 BAKER', '38 RYLAND', '47 GILLIKIN']),
+        rosterTeam('ATLANTA', 'ATL', '#a71930', '#000000', ['9 PENIX JR.', '7 ROBINSON', '5 LONDON', '1 MOONEY', '34 MCCLOUD', '8 PITTS',
+            '70 MATTHEWS', '65 BERGERON', '66 NEUZIL', '63 LINDSTROM', '76 MCGARY', '27 PEARCE JR.', '90 ONYEMATA', '99 ORHORHORO', '96 HARRISON',
+            '11 WALKER', '55 ELLISS', '5 DEABLO', '24 TERRELL', '21 HUGHES', '20 ALFORD', '3 BATES', '6 KOO', '13 PINION']),
+        rosterTeam('CAROLINA', 'CAR', '#0085ca', '#101820', ['9 YOUNG', '30 HUBBARD', '4 MCMILLAN', '17 LEGETTE', '18 COKER', '0 SANDERS',
+            '79 EKWONU', '68 LEWIS', '63 CORBETT', '54 HUNT', '72 MOTON', '11 SCOURTON', '95 BROWN', '98 WHARTON', '91 JONES II',
+            '33 WALLACE', '47 JEWELL', '56 ROZEBOOM', '8 HORN', '2 JACKSON', '26 SMITH-WADE', '7 MOEHRIG', '37 FITZGERALD', '6 MARTIN']),
+        rosterTeam('CHICAGO', 'CHI', '#0b162a', '#c83803', ['18 WILLIAMS', '4 SWIFT', '2 MOORE', '15 ODUNZE', '10 BURDEN III', '85 KMET',
+            '70 JONES', '62 THUNEY', '52 DALMAN', '73 JACKSON', '58 WRIGHT', '98 SWEAT', '97 JARRETT', '99 DEXTER', '94 ODEYINGBO',
+            '53 EDWARDS', '49 EDMUNDS', '44 SEWELL', '1 JOHNSON', '29 STEVENSON', '6 GORDON', '31 BYARD', '8 SANTOS', '19 TAYLOR']),
+        rosterTeam('CLEVELAND', 'CLE', '#311d00', '#ff3c00', ['12 SANDERS', '10 JUDKINS', '3 JEUDY', '19 TILLMAN', '15 BOND', '85 NJOKU',
+            '74 JONES', '75 BITONIO', '55 POCIC', '77 TELLER', '78 CONKLIN', '95 GARRETT', '92 GRAHAM', '97 HURST', '57 MCGUIRE',
+            '17 BAKER', '49 SCHWESINGER', '30 BUSH', '21 WARD', '3 CAMPBELL', '23 EMERSON JR.', '9 DELPIT', '3 SZMYT', '13 BOJORQUEZ']),
+        rosterTeam('DENVER', 'DEN', '#fb4f14', '#002244', ['10 NIX', '27 DOBBINS', '14 SUTTON', '19 MIMS JR.', '16 FRANKLIN', '1 ENGRAM',
+            '72 BOLLES', '74 POWERS', '60 WATTENBERG', '77 MEINERZ', '69 MCGLINCHEY', '15 BONITTO', '99 ALLEN', '93 JONES', '0 COOPER',
+            '57 GREENLAW', '49 SINGLETON', '40 STRNAD', '2 SURTAIN II', '21 MOSS', '35 MCMILLIAN', '22 JONES', '3 LUTZ', '17 CRAWSHAW']),
+        rosterTeam('INDIANAPOLIS', 'IND', '#002c5f', '#a2aaad', ['17 JONES', '28 TAYLOR', '11 PITTMAN JR.', '1 DOWNS', '14 PIERCE', '84 WARREN',
+            '79 RAIMANN', '56 NELSON', '60 BORTOLINI', '70 GONCALVES', '72 SMITH', '97 LATU', '99 BUCKNER', '90 STEWART', '51 PAYE',
+            '33 CARLIES', '44 FRANKLIN', '45 OLUBI', '1 GARDNER', '35 WARD', '23 MOORE II', '24 BYNUM', '4 SHRADER', '8 SANCHEZ']),
+        rosterTeam('JACKSONVILLE', 'JAX', '#006778', '#d7a22a', ['16 LAWRENCE', '1 ETIENNE JR.', '7 THOMAS JR.', '12 HUNTER', '11 WASHINGTON', '85 STRANGE',
+            '72 LITTLE', '74 CLEVELAND', '64 HAINSEY', '65 MEKARI', '77 HARRISON', '41 HINES-ALLEN', '52 HAMILTON', '91 ARMSTEAD', '44 WALKER',
+            '23 OLUOKUN', '33 LLOYD', '51 MILLER', '20 NEWSOME II', '2 LEWIS', '30 BROWN', '26 JOHNSON', '39 LITTLE', '9 COOKE']),
+        rosterTeam('LAS VEGAS', 'LV', '#000000', '#a5acaf', ['7 SMITH', '2 JEANTY', '11 TUCKER', '5 THORNTON', '18 BECH', '89 BOWERS',
+            '74 MILLER', '66 PARHAM', '58 POWERS-JOHNSON', '65 CAPPA', '71 GLAZE', '98 CROSBY', '94 WILKINS', '69 BUTLER', '51 KOONCE',
+            '45 EICHENBERG', '52 ROBERTS', '0 WHITE', '23 STOKES', '31 KELLY', '26 HOLMES', '1 CHINN', '2 CARLSON', '6 COLE']),
+        rosterTeam('LA CHARGERS', 'LAC', '#0080c6', '#ffc20e', ['10 HERBERT', '28 HAMPTON', '15 MCCONKEY', '1 JOHNSTON', '13 ALLEN', '86 GADSDEN II',
+            '76 ALT', '77 JOHNSON', '75 BOZEMAN', '73 BECTON', '79 PIPKINS', '52 MACK', '93 TART', '92 HAND', '45 TUIPULOTU',
+            '0 HENLEY', '6 PERRYMAN', '9 DYE', '29 STILL', '26 JACKSON', '3 JAMES JR.', '2 MOLDEN', '11 DICKER', '16 SCOTT']),
+        rosterTeam('LA RAMS', 'LAR', '#003594', '#ffa300', ['9 STAFFORD', '23 WILLIAMS', '12 NACUA', '17 ADAMS', '5 ATWELL', '89 HIGBEE',
+            '70 JACKSON', '73 AVILA', '65 LIMMER', '69 DOTSON', '79 HAVENSTEIN', '0 VERSE', '91 TURNER', '55 FISKE', '98 YOUNG',
+            '53 LANDMAN', '46 SPEIGHTS', '51 REEDER', '14 DURANT', '31 WILLIAMS', '37 LAKE', '26 KINCHENS', '16 KARTY', '15 EVANS']),
+        rosterTeam('MIAMI', 'MIA', '#008e97', '#fc4c02', ['1 TAGOVAILOA', '28 ACHANE', '17 WADDLE', '10 HILL', '6 WASHINGTON', '12 WALLER',
+            '77 PAUL', '70 SAVAIINAEA', '55 BREWER', '78 DANIELS', '73 JACKSON', '44 ROBINSON', '92 SIELER', '99 GRANT', '2 CHUBB',
+            '25 DODSON', '20 BROOKS', '52 GAY JR.', '36 DUCK', '18 JONES', '22 KOHOU', '29 FITZPATRICK', '7 SANDERS', '16 BAILEY']),
+        rosterTeam('NEW ENGLAND', 'NE', '#002244', '#c60c30', ['10 MAYE', '38 STEVENSON', '8 DIGGS', '9 BOUTTE', '3 DOUGLAS', '85 HENRY',
+            '66 CAMPBELL', '69 STRANGE', '65 BRADBURY', '71 ONWENU', '76 MOSES', '2 LANDRY III', '97 WILLIAMS', '90 BARMORE', '99 WHITE',
+            '53 ELLISS', '14 SPILLANE', '48 TAVAI', '0 GONZALEZ', '7 DAVIS III', '25 JONES', '31 WOODSON', '36 BORREGALES', '17 BARINGER']),
+        rosterTeam('NEW ORLEANS', 'NO', '#101820', '#d3bc8d', ['6 SHOUGH', '41 KAMARA', '12 OLAVE', '17 VELE', '19 TIPTON', '83 JOHNSON',
+            '71 BANKS JR.', '70 PENNING', '78 MCCOY', '51 RUIZ', '75 FUAGA', '94 JORDAN', '90 BRESEE', '91 RIDGEWAY', '99 YOUNG',
+            '20 WERNER', '56 DAVIS', '53 FORD', '1 TAYLOR', '22 MCKINSTRY', '23 YIADOM', '2 REID', '19 GRUPE', '3 KROEGER']),
+        rosterTeam('NY GIANTS', 'NYG', '#0b2265', '#a71930', ['6 DART', '44 SKATTEBO', '1 NABERS', '17 ROBINSON', '86 SLAYTON', '84 JOHNSON',
+            '78 THOMAS', '76 RUNYAN', '61 SCHMITZ', '74 VAN ROTEN', '72 ELUEMUNOR', '0 BURNS', '97 LAWRENCE II', '99 NUNEZ-ROCHES', '51 CARTER',
+            '41 MCFADDEN', '58 OKEREKE', '5 THIBODEAUX', '29 ADEBO', '28 FLOTT', '23 BANKS', '8 HOLLAND', '9 GANO', '6 GILLAN']),
+        rosterTeam('NY JETS', 'NYJ', '#125740', '#ffffff', ['7 FIELDS', '20 HALL', '5 WILSON', '10 LAZARD', '83 JOHNSON', '85 TAYLOR',
+            '74 FASHANU', '76 SIMPSON', '66 TIPPMANN', '75 VERA-TUCKER', '70 MEMBOU', '52 JOHNSON', '97 PHILLIPS', '94 NNADI', '99 MCDONALD IV',
+            '44 SHERWOOD', '56 WILLIAMS', '50 REED', '21 STEPHENS', '22 ADAMS', '30 CARTER II', '23 THOMAS', '6 FOLK', '7 MCNAMARA']),
+        rosterTeam('PITTSBURGH', 'PIT', '#101820', '#ffb612', ['8 RODGERS', '30 WARREN', '4 METCALF', '19 AUSTIN III', '14 WILSON', '88 FREIERMUTH',
+            '77 JONES', '73 SEUMALO', '54 FRAZIER', '66 MCCORMICK', '76 FAUTANU', '90 WATT', '97 HEYWARD', '95 BENTON', '56 HIGHSMITH',
+            '41 WILSON', '6 QUEEN', '43 HARRISON', '24 PORTER JR.', '23 SLAY', '5 RAMSEY', '25 ELLIOTT', '9 BOSWELL', '2 WAITMAN']),
+        rosterTeam('TAMPA BAY', 'TB', '#d50a0a', '#34302b', ['6 MAYFIELD', '7 IRVING', '13 EVANS', '14 GODWIN', '2 EGBUKA', '88 OTTON',
+            '78 WIRFS', '68 BREDESON', '62 BARTON', '69 MAUCH', '67 GOEDEKE', '0 DIABY', '94 KANCEY', '50 VEA', '98 NELSON',
+            '8 DENNIS', '54 DAVID', '45 GENTRY', '35 DEAN', '27 MCCOLLUM', '29 PARRISH', '31 WINFIELD JR.', '4 MCLAUGHLIN', '15 DIXON']),
+        rosterTeam('TENNESSEE', 'TEN', '#0c2340', '#4b92db', ['1 WARD', '20 POLLARD', '0 RIDLEY', '5 AYOMANOR', '18 DIKE', '85 OKONKWO',
+            '65 MOORE JR.', '77 SKORONSKI', '79 CUSHENBERRY', '70 ZEITLER', '55 LATHAM', '49 KEY', '98 SIMMONS', '93 SWEAT', '86 JONES',
+            '33 GRAY', '4 BARTON', '58 MURPHY-BUNTING', '38 SNEED', '29 BROWNLEE', '21 MCCREARY', '37 HOOKER', '6 SLYE', '14 HEKKER']),
+        rosterTeam('WASHINGTON', 'WAS', '#5a1414', '#ffb612', ['5 DANIELS', '22 CROSKEY-MERRITT', '17 MCLAURIN', '1 SAMUEL', '85 BROWN', '86 ERTZ',
+            '78 TUNSIL', '75 COLEMAN', '63 BIADASZ', '76 COSMI', '74 CONERLY JR.', '3 LUVU', '94 PAYNE', '97 KINLAW', '92 ARMSTRONG',
+            '6 MAGEE', '54 WAGNER', '0 SMITH', '2 LATTIMORE', '0 SAINRISTIL', '21 AMOS', '20 MARTIN', '16 GAY', '5 WAY'])
+    );
+    // Helmet / pants colors for the teams added above
+    const MORE_UNIFORMS = {
+        ARI: { helm: '#ffffff', stripe: '#97233f', pants: '#ffffff', mask: '#97233f' },
+        ATL: { helm: '#111111', stripe: '#a71930', pants: '#ffffff', mask: '#111111' },
+        CAR: { helm: '#a5acaf', stripe: '#0085ca', pants: '#a5acaf', mask: '#101820' },
+        CHI: { helm: '#0b162a', stripe: '#c83803', pants: '#ffffff', mask: '#0b162a' },
+        CLE: { helm: '#ff3c00', stripe: '#311d00', pants: '#ffffff', mask: '#311d00' },
+        DEN: { helm: '#002244', stripe: '#fb4f14', pants: '#ffffff', mask: '#002244' },
+        IND: { helm: '#002c5f', stripe: '#ffffff', pants: '#ffffff', mask: '#a2aaad' },
+        JAX: { helm: '#101820', stripe: '#d7a22a', pants: '#ffffff', mask: '#101820' },
+        LV:  { helm: '#a5acaf', stripe: '#000000', pants: '#a5acaf', mask: '#000000' },
+        LAC: { helm: '#ffffff', stripe: '#0080c6', pants: '#ffffff', mask: '#002a5e' },
+        LAR: { helm: '#003594', stripe: '#ffd100', pants: '#ffffff', mask: '#003594' },
+        MIA: { helm: '#ffffff', stripe: '#008e97', pants: '#ffffff', mask: '#008e97' },
+        NE:  { helm: '#b0b7bc', stripe: '#c60c30', pants: '#ffffff', mask: '#002244' },
+        NO:  { helm: '#d3bc8d', stripe: '#101820', pants: '#d3bc8d', mask: '#101820' },
+        NYG: { helm: '#0b2265', stripe: '#a71930', pants: '#a5acaf', mask: '#a5acaf' },
+        NYJ: { helm: '#125740', stripe: '#ffffff', pants: '#ffffff', mask: '#125740' },
+        PIT: { helm: '#101820', stripe: '#ffb612', pants: '#ffb612', mask: '#101820' },
+        TB:  { helm: '#34302b', stripe: '#d50a0a', pants: '#34302b', mask: '#34302b' },
+        TEN: { helm: '#0c2340', stripe: '#4b92db', pants: '#ffffff', mask: '#0c2340' },
+        WAS: { helm: '#5a1414', stripe: '#ffb612', pants: '#ffb612', mask: '#5a1414' }
+    };
+    // All 32 teams, alphabetical on the team-select screen
+    nfl2026Teams.sort((a, b) => a.name.localeCompare(b.name));
+
     // Helmet / pants colors (uniform details beyond the primary & secondary team colors)
     const UNIFORM_EXTRA = {
         KC:  { helm: '#e31837', stripe: '#ffffff', pants: '#ffffff', mask: '#d1d5db' },
@@ -904,6 +1011,7 @@
         MIN: { helm: '#4f2683', stripe: '#ffc62f', pants: '#ffffff', mask: '#4f2683' },
         SEA: { helm: '#002244', stripe: '#69be28', pants: '#a5acaf', mask: '#002244' }
     };
+    Object.assign(UNIFORM_EXTRA, MORE_UNIFORMS);
 
     // --- PLAYBOOKS ---
     // Routes are waypoints relative to the receiver's alignment: [inside, downfield] in yards, where "inside"
@@ -972,7 +1080,9 @@
     const SPEED_OVERRIDE = {
         JACKSON: 9.9, ALLEN: 9.0, HURTS: 9.1, MAHOMES: 8.6, MCCARTHY: 8.8, GOFF: 7.9, PRESCOTT: 8.2, BURROW: 8.3,
         WORTHY: 10.6, GIBBS: 10.3, BARKLEY: 10.2, SHAHEED: 10.4, CHASE: 10.2, JEFFERSON: 10.1, MCCAFFREY: 9.9,
-        HENRY: 9.8, 'ST. BROWN': 9.8, KELCE: 8.9, KITTLE: 9.3, HUTCHINSON: 9.1, BOSA: 9.0, PARSONS: 9.4
+        HENRY: 9.8, 'ST. BROWN': 9.8, KELCE: 8.9, KITTLE: 9.3, HUTCHINSON: 9.1, BOSA: 9.0, PARSONS: 9.4,
+        MURRAY: 9.6, DANIELS: 9.7, FIELDS: 9.5, ACHANE: 10.5, HILL: 10.6, WADDLE: 10.3, NABERS: 10.1, HALL: 10.0,
+        NACUA: 9.9, 'THOMAS JR.': 10.2, HUNTER: 10.1, 'HARRISON JR.': 9.9, BOWERS: 9.4, JEANTY: 9.9, ROBINSON: 10.0, GARRETT: 9.2, WATT: 9.1, 'SURTAIN II': 9.9, GARDNER: 9.9
     };
     const accelFor = (pos) => {
         if (['LT', 'LG', 'C', 'RG', 'RT', 'OL', 'LS'].includes(pos)) return 5.0;
@@ -1531,7 +1641,8 @@
     const humanDefense = () => isDefense || gameMode === 'ONLINE';
     const humanOffense = () => !isDefense;
     const snapAllowed = () => gameMode !== 'ONLINE' || defCalled || preSnapFrames >= DEFENSE_CALL_FRAMES;
-    const skillMul = () => (gameMode === '1P' ? [0.94, 1.0, 1.05][cpuSkill] : 1.0);
+    const skillMul = () => (gameMode === '1P' ? [0.98, 1.04, 1.09][cpuSkill] : 1.0);
+    const cpuDefense = () => gameMode === '1P' && !isDefense; // The CPU is defending against the user
 
     // Buttons and keys become actions; an online guest forwards them to the host, which owns the game
     function doAction(a, arg) {
@@ -2286,6 +2397,8 @@
             e.cov = e.role === 'MAN' ? `M${e.man}` : (e.role === 'ZONE' ? `Z${e.zx.toFixed(1)},${e.zy.toFixed(1)}` : e.role[0]);
         }
         controlledDefIndex = preferredDefIndex < defenders.length ? preferredDefIndex : 5;
+        // CPU defenders get quicker with the skill level (user on offense in 1P)
+        if (cpuDefense()) for (const e of defenders) { e.spd *= skillMul(); e.acc *= skillMul(); }
     }
 
     function setupPreSnap() {
@@ -2831,7 +2944,7 @@
         gameState = 'PASS_IN_AIR';
         fx('throw');
         // Defenders read the throw after a short reaction time
-        for (const dd of defenders) dd.readAt = playFrame + Math.round(rand(8, 16));
+        for (const dd of defenders) dd.readAt = playFrame + Math.round(cpuDefense() ? rand(4, 10) : rand(6, 13));
     }
 
     function resolvePass() {
@@ -2857,7 +2970,8 @@
         }
         if (inBounds && r && dr <= reach) {
             let p = 0.96 - (dr > 1.0 ? 0.1 : 0);
-            if (dd < 1.3) p *= 0.6 + 0.35 * (dd / 1.3); // Contested: a defender in the receiver's hip pocket
+            const tight = cpuDefense() ? 1.6 : 1.45;
+            if (dd < tight) p *= 0.55 + 0.4 * (dd / tight); // Contested: a defender in the receiver's hip pocket
             if (r.down > 0) p = 0.05;
             if (Math.random() < p) { completePass(r); return; }
         }
@@ -3181,8 +3295,9 @@
                 const r = offense[d.man];
                 if (!r) { d.role = 'PURSUE'; break; }
                 // Smoothed read of the receiver's velocity: cuts create separation
-                d.tvx += (r.vx - d.tvx) * 0.07;
-                d.tvy += (r.vy - d.tvy) * 0.07;
+                const react = cpuDefense() ? 0.1 : 0.085;
+                d.tvx += (r.vx - d.tvx) * react;
+                d.tvy += (r.vy - d.tvy) * react;
                 // Inside leverage with a cushion that shrinks as the route gets deep ("stay on top")
                 const inside = r.x < MID ? 0.7 : -0.7;
                 const cushion = r.y > L + 10 ? 0.5 : 1.3;
@@ -3239,11 +3354,6 @@
                 seek(d, tgt.x, tgt.y, 1, 0.01);
             }
         }
-        // CPU defenders play slightly faster/slower by skill level (user on offense in 1P)
-        if (gameMode === '1P' && !isDefense) {
-            const m = skillMul();
-            if (m !== 1) { const s = speedOf(d); if (s > d.spd * m) { d.vx *= d.spd * m / s; d.vy *= d.spd * m / s; } }
-        }
     }
 
     // Keep bodies from overlapping (engaged pairs and tacklers vs the carrier excepted)
@@ -3289,7 +3399,7 @@
 
             let p = 0.91;
             p -= 0.08 * clamp(speedOf(c) / c.spd, 0, 1);
-            if (c.elusive > 0) p -= 0.3;
+            if (c.elusive > 0) p -= cpuDefense() ? 0.2 : 0.3;
             if (d.eng) p = 0.14;                       // Arm tackle while engaged with a blocker
             if (isOL(c) || c.pos === 'QB' && !hasCrossedLOS) p += 0.08;
             let help = 0;
@@ -4331,13 +4441,20 @@
         }
         ctx.restore();
         ctx.save();
-        ctx.font = `700 ${ppy * 4.4}px Oswald, 'Russo One', sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.lineWidth = ppy * 0.35;
         ctx.strokeStyle = team.s;
         const cy = (top + bot) / 2;
-        const name = team.name.length > 9 ? team.name.split(' ').pop() : team.name;
+        const name = team.name;
+        // Fill most of the end zone width, shrinking long names to fit
+        let fs = ppy * 4.4;
+        ctx.font = `700 ${fs}px Oswald, 'Russo One', sans-serif`;
+        const tw = ctx.measureText(name).width;
+        if (tw > (right - left) * 0.88) {
+            fs *= (right - left) * 0.88 / tw;
+            ctx.font = `700 ${fs}px Oswald, 'Russo One', sans-serif`;
+        }
         ctx.save();
         ctx.translate(getScreenX(MID), cy);
         if (y0 > 50) ctx.rotate(Math.PI); // Text faces its own end line, like the real thing
