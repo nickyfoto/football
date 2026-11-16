@@ -98,6 +98,9 @@
             min-width: 92px;
             position: relative;
         }
+        .sb-logo { width: 28px; height: 28px; flex: none; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.6)); }
+        .badge-img { display: block; margin: 0 auto 2px; }
+        .chip-badge { width: 20px; height: 20px; vertical-align: middle; }
         .sb-abbr { font-size: clamp(0.9rem, 2vw, 1.15rem); font-weight: 700; letter-spacing: 1px; text-shadow: 1px 1px 0 rgba(0,0,0,0.6); }
         .sb-score { font-size: clamp(1.15rem, 2.8vw, 1.6rem); font-weight: 700; margin-left: auto; min-width: 1.6em; text-align: right; text-shadow: 1px 1px 0 rgba(0,0,0,0.6); }
         .sb-tos { position: absolute; left: 8px; right: 10px; bottom: 2px; display: flex; gap: 3px; }
@@ -315,12 +318,14 @@
                 <div class="scorebug">
                     <div class="sb-team" id="sb-away">
                         <div class="sb-poss" id="sb-away-poss"></div>
+                        <img class="sb-logo" id="sb-away-logo" alt="">
                         <div class="sb-abbr" id="sb-away-abbr">AWY</div>
                         <div class="sb-score" id="sb-away-score">0</div>
                         <div class="sb-tos" id="sb-away-tos"><i></i><i></i><i></i></div>
                     </div>
                     <div class="sb-team" id="sb-home">
                         <div class="sb-poss" id="sb-home-poss"></div>
+                        <img class="sb-logo" id="sb-home-logo" alt="">
                         <div class="sb-abbr" id="sb-home-abbr">HME</div>
                         <div class="sb-score" id="sb-home-score">0</div>
                         <div class="sb-tos" id="sb-home-tos"><i></i><i></i><i></i></div>
@@ -1062,6 +1067,142 @@
     // All 32 teams, alphabetical on the team-select screen
     nfl2026Teams.sort((a, b) => a.name.localeCompare(b.name));
 
+    // =====================================================================================
+    //  TEAM BADGES: original emblems in each team's colors (not the teams' official logos)
+    // =====================================================================================
+    const BADGE_SHAPES = ['shield', 'circle', 'hex', 'crest'];
+    const BADGE_MARKS = ['chevrons', 'rays', 'peaks', 'waves', 'stripes', 'ring', 'diamond'];
+    function badgeStyle(team) {
+        let h = 7;
+        for (const ch of team.abbr) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+        return { shape: BADGE_SHAPES[h % BADGE_SHAPES.length], mark: BADGE_MARKS[(h >>> 3) % BADGE_MARKS.length] };
+    }
+    function badgePath(c, shape, r) {
+        c.beginPath();
+        if (shape === 'circle') {
+            c.arc(0, 0, r, 0, Math.PI * 2);
+        } else if (shape === 'hex') {
+            for (let i = 0; i < 6; i++) {
+                const a = Math.PI / 6 + i * Math.PI / 3;
+                c[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r);
+            }
+            c.closePath();
+        } else if (shape === 'crest') {
+            c.moveTo(-r * 0.85, -r * 0.9);
+            c.quadraticCurveTo(0, -r * 1.15, r * 0.85, -r * 0.9);
+            c.lineTo(r * 0.85, r * 0.15);
+            c.quadraticCurveTo(r * 0.7, r * 0.75, 0, r * 1.02);
+            c.quadraticCurveTo(-r * 0.7, r * 0.75, -r * 0.85, r * 0.15);
+            c.closePath();
+        } else {
+            c.moveTo(-r * 0.9, -r * 0.95);
+            c.lineTo(r * 0.9, -r * 0.95);
+            c.lineTo(r * 0.9, r * 0.1);
+            c.quadraticCurveTo(r * 0.85, r * 0.7, 0, r * 1.02);
+            c.quadraticCurveTo(-r * 0.85, r * 0.7, -r * 0.9, r * 0.1);
+            c.closePath();
+        }
+    }
+    // Abstract mark drawn behind the initials, clipped to the badge
+    function badgeMark(c, mark, r, color) {
+        c.strokeStyle = color;
+        c.fillStyle = color;
+        c.lineWidth = r * 0.12;
+        c.lineJoin = 'round';
+        if (mark === 'chevrons') {
+            for (let k = 0; k < 3; k++) {
+                const y = -r * 0.85 + k * r * 0.24;
+                c.beginPath(); c.moveTo(-r, y); c.lineTo(0, y + r * 0.3); c.lineTo(r, y); c.stroke();
+            }
+        } else if (mark === 'rays') {
+            for (let k = -3; k <= 3; k++) {
+                const a = -Math.PI / 2 + k * 0.32;
+                c.beginPath(); c.moveTo(0, r * 0.95); c.lineTo(Math.cos(a) * r * 1.6, r * 0.95 + Math.sin(a) * r * 1.6); c.lineWidth = r * 0.07; c.stroke();
+            }
+        } else if (mark === 'peaks') {
+            c.beginPath(); c.moveTo(-r, -r * 0.2); c.lineTo(-r * 0.45, -r * 0.8); c.lineTo(0, -r * 0.35); c.lineTo(r * 0.45, -r * 0.85); c.lineTo(r, -r * 0.2);
+            c.lineTo(r, -r * 1.2); c.lineTo(-r, -r * 1.2); c.closePath(); c.fill();
+        } else if (mark === 'waves') {
+            for (let k = 0; k < 2; k++) {
+                const y = r * 0.55 + k * r * 0.22;
+                c.beginPath(); c.moveTo(-r, y);
+                for (let x = -r; x <= r; x += r * 0.25) c.quadraticCurveTo(x + r * 0.06, y - r * 0.14, x + r * 0.125, y);
+                c.lineWidth = r * 0.08; c.stroke();
+            }
+        } else if (mark === 'stripes') {
+            c.fillRect(-r * 0.42, -r * 1.2, r * 0.16, r * 2.4);
+            c.fillRect(r * 0.26, -r * 1.2, r * 0.16, r * 2.4);
+        } else if (mark === 'ring') {
+            c.beginPath(); c.arc(0, 0, r * 0.74, 0, Math.PI * 2); c.lineWidth = r * 0.08; c.stroke();
+        } else {
+            c.beginPath(); c.moveTo(0, -r * 0.88); c.lineTo(r * 0.62, 0); c.lineTo(0, r * 0.88); c.lineTo(-r * 0.62, 0); c.closePath();
+            c.globalAlpha *= 0.55; c.fill();
+        }
+    }
+    // Draw a team badge centered at (x, y) with radius r on any 2D context
+    function drawBadge(c, team, x, y, r) {
+        const { shape, mark } = badgeStyle(team);
+        c.save();
+        c.translate(x, y);
+        badgePath(c, shape, r);
+        const g = c.createLinearGradient(0, -r, 0, r);
+        g.addColorStop(0, team.p);
+        g.addColorStop(1, shadeColor(team.p, -0.25));
+        c.fillStyle = g;
+        c.fill();
+        c.save();
+        badgePath(c, shape, r);
+        c.clip();
+        c.globalAlpha = 0.85;
+        badgeMark(c, mark, r, team.s === team.p ? '#ffffff' : team.s);
+        c.restore();
+        badgePath(c, shape, r);
+        c.lineWidth = Math.max(1.5, r * 0.11);
+        c.strokeStyle = team.s;
+        c.stroke();
+        badgePath(c, shape, r * 0.9);
+        c.lineWidth = Math.max(1, r * 0.03);
+        c.strokeStyle = 'rgba(255,255,255,0.5)';
+        c.stroke();
+        // Initials
+        const txt = team.abbr;
+        const fs = r * (txt.length >= 3 ? 0.72 : 0.92);
+        c.font = `700 ${fs}px Oswald, 'Russo One', sans-serif`;
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.lineWidth = Math.max(2, r * 0.12);
+        c.strokeStyle = 'rgba(0,0,0,0.65)';
+        c.strokeText(txt, 0, r * 0.06);
+        c.fillStyle = '#ffffff';
+        c.fillText(txt, 0, r * 0.06);
+        c.restore();
+    }
+    function shadeColor(hex, amt) {
+        const n = parseInt(hex.slice(1), 16);
+        const f = (v) => Math.max(0, Math.min(255, Math.round(v + (amt < 0 ? v * amt : (255 - v) * amt))));
+        return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
+    }
+    // Badge as an image URL for menus, the scorebug and standings (cached)
+    const badgeCache = {};
+    function badgeURL(team, px = 64) {
+        const key = `${team.abbr}:${px}`;
+        if (badgeCache[key]) return badgeCache[key];
+        const cv = document.createElement('canvas');
+        cv.width = px;
+        cv.height = px;
+        drawBadge(cv.getContext('2d'), team, px / 2, px / 2, px * 0.44);
+        return (badgeCache[key] = cv.toDataURL());
+    }
+    function badgeImg(team, px, cls) {
+        const img = document.createElement('img');
+        img.src = badgeURL(team, px * 2);
+        img.width = px;
+        img.height = px;
+        img.alt = team.abbr;
+        img.className = cls || 'badge-img';
+        return img;
+    }
+
     // Helmet / pants colors (uniform details beyond the primary & secondary team colors)
     const UNIFORM_EXTRA = {
         KC:  { helm: '#e31837', stripe: '#ffffff', pants: '#ffffff', mask: '#d1d5db' },
@@ -1460,6 +1601,7 @@
                         <div class="text-[10px] text-white/90 mt-0.5">QB ${team.roster.qb.nm} • WR ${team.roster.wr1.nm}</div>
                         <div class="pick-badge hidden"></div>
                     `;
+                    card.prepend(badgeImg(team, 34));
                     card.addEventListener('click', () => onTeamCardClick(idx));
                     row.appendChild(card);
                     teamCards[idx] = card;
@@ -4570,6 +4712,7 @@
         chip.style.borderColor = t.s;
         chip.textContent = abbr;
         const wrap = el('span', 'chip-wrap');
+        wrap.appendChild(badgeImg(t, 20, 'chip-badge'));
         wrap.appendChild(chip);
         if (st) wrap.appendChild(el('span', 'chip-rec', recordText(st[abbr]) + (extra || '')));
         return wrap;
@@ -4971,20 +5114,8 @@
         const my = getScreenY(50);
         if (my > -ppy * 6 && my < canvas.height + ppy * 6) {
             ctx.save();
-            ctx.beginPath();
-            ctx.ellipse(getScreenX(MID), my, ppy * 4.2, ppy * 4.2, 0, 0, Math.PI * 2);
-            ctx.fillStyle = venueTeam().p;
-            ctx.globalAlpha = 0.85;
-            ctx.fill();
-            ctx.globalAlpha = 1;
-            ctx.lineWidth = ppy * 0.35;
-            ctx.strokeStyle = venueTeam().s;
-            ctx.stroke();
-            ctx.fillStyle = '#ffffff';
-            ctx.font = `700 ${ppy * 2.6}px Oswald, 'Russo One', sans-serif`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(venueTeam().abbr, getScreenX(MID), my + ppy * 0.1);
+            ctx.globalAlpha = 0.92; // Painted on the grass
+            drawBadge(ctx, venueTeam(), getScreenX(MID), my, ppy * 4.4);
             ctx.restore();
         }
 
@@ -5034,8 +5165,8 @@
         let fs = ppy * 4.4;
         ctx.font = `700 ${fs}px Oswald, 'Russo One', sans-serif`;
         const tw = ctx.measureText(name).width;
-        if (tw > (right - left) * 0.88) {
-            fs *= (right - left) * 0.88 / tw;
+        if (tw > (right - left) * 0.64) {
+            fs *= (right - left) * 0.64 / tw;
             ctx.font = `700 ${fs}px Oswald, 'Russo One', sans-serif`;
         }
         ctx.save();
@@ -5044,6 +5175,11 @@
         ctx.strokeText(name, 0, 0);
         ctx.fillStyle = '#ffffff';
         ctx.fillText(name, 0, 0);
+        // Team badge at each end of the name
+        const bx = (right - left) * 0.41;
+        const br = Math.min(ppy * 3.3, (bot - top) * 0.36);
+        drawBadge(ctx, team, -bx, 0, br);
+        drawBadge(ctx, team, bx, 0, br);
         ctx.restore();
         ctx.restore();
     }
@@ -6002,6 +6138,8 @@
         const aT = sideTeam(other(homeSlot));
         const slotScore = (slot) => String(Number(slot === 'HOME' ? h.sh : h.sa) || 0);
         const slotTOs = (slot) => (slot === 'HOME' ? h.toH : h.toA);
+        if (hudCache.hl !== hT.abbr) { hudCache.hl = hT.abbr; $('sb-home-logo').src = badgeURL(hT, 56); }
+        if (hudCache.al !== aT.abbr) { hudCache.al = aT.abbr; $('sb-away-logo').src = badgeURL(aT, 56); }
         setText($('sb-home-abbr'), 'ha', hT.abbr);
         setText($('sb-away-abbr'), 'aa', aT.abbr);
         setStyle($('sb-home'), 'hb', 'background', `linear-gradient(90deg, ${hT.p}, ${hT.p}cc)`);
@@ -6155,6 +6293,14 @@
     }
 
     resize();
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => {
+            for (const k in badgeCache) delete badgeCache[k];
+            hudCache.hl = hudCache.al = '';
+            initTeamSelection();
+            renderLobby();
+        });
+    }
     requestAnimationFrame((timestamp) => {
         lastFrameTime = timestamp;
         frame(timestamp);
