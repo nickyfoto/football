@@ -261,6 +261,13 @@
             .tool-btns button { padding: 3px 6px; font-size: 0.6rem; }
             .choice-btn { min-width: 120px; padding: 10px 12px; }
         }
+        /* Top-level game type */
+        .top-modes { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; }
+        .top-mode { display: flex; flex-direction: column; align-items: center; min-width: 200px; padding: 10px 18px; border-radius: 12px; border: 3px solid #475569; background: #1e293b; color: #cbd5e1; cursor: pointer; }
+        .top-mode.on { border-color: #facc15; background: linear-gradient(180deg, #1d4ed8, #1e3a8a); color: #fff; }
+        .top-mode-title { font-size: 1.25rem; letter-spacing: 1px; }
+        .top-mode-sub { font-size: 0.65rem; opacity: 0.85; margin-top: 2px; }
+
         /* Team picker grouped by conference and division */
         .conf-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .conf-pick-col { display: flex; flex-direction: column; gap: 8px; }
@@ -394,12 +401,16 @@
         <h1 id="menu-title" class="text-4xl md:text-6xl text-white mb-1" style="text-shadow: 4px 4px 0 #000;">BLITZ<span class="text-red-500"> BREAKER</span> <span class="text-amber-400 text-2xl md:text-4xl">2026</span></h1>
         <p id="menu-subtitle" class="text-gray-300 mb-3 text-xs md:text-sm text-center max-w-2xl whitespace-pre-line">SIM EDITION • 4 Quarters • Real Routes & Pass Physics • 2025 Kickoff Rules • Timeouts & Play Clock</p>
 
-        <!-- Mode Selector -->
-        <div class="flex flex-wrap justify-center gap-2 mb-3">
-            <button id="mode-1p-btn" class="px-4 py-2 rounded-lg border-2 border-amber-400 bg-blue-600 text-white text-xs md:text-sm">1P VS CPU</button>
-            <button id="mode-2p-btn" class="px-4 py-2 rounded-lg border-2 border-slate-600 bg-slate-800 text-slate-300 text-xs md:text-sm">2P COACH MODE (CONTROL BOTH)</button>
-            <button id="mode-mp-btn" class="px-4 py-2 rounded-lg border-2 border-slate-600 bg-slate-800 text-slate-300 text-xs md:text-sm">ONLINE ROOM CODE</button>
-            <button id="mode-season-btn" class="px-4 py-2 rounded-lg border-2 border-slate-600 bg-slate-800 text-slate-300 text-xs md:text-sm">SEASON</button>
+        <!-- Game type: a quick match or a full season -->
+        <div class="top-modes">
+            <button id="mode-quick-btn" class="top-mode on"><span class="top-mode-title">QUICK MATCH</span><span class="top-mode-sub">One game vs the CPU or a friend</span></button>
+            <button id="mode-season-btn" class="top-mode"><span class="top-mode-title">SEASON</span><span class="top-mode-sub">17 games, standings, playoffs, Super Bowl</span></button>
+        </div>
+        <!-- Quick match: who you play against -->
+        <div id="quick-modes" class="flex flex-wrap justify-center gap-2 mb-3">
+            <button id="mode-1p-btn" class="px-4 py-2 rounded-lg border-2 border-amber-400 bg-blue-600 text-white text-xs md:text-sm">VS CPU</button>
+            <button id="mode-2p-btn" class="px-4 py-2 rounded-lg border-2 border-slate-600 bg-slate-800 text-slate-300 text-xs md:text-sm">2 PLAYERS (COACH MODE)</button>
+            <button id="mode-mp-btn" class="px-4 py-2 rounded-lg border-2 border-slate-600 bg-slate-800 text-slate-300 text-xs md:text-sm">ONLINE WITH A FRIEND</button>
         </div>
 
         <!-- Season mode: resume a saved season -->
@@ -1676,15 +1687,20 @@
         gameMode = seasonMenu ? '1P' : mode; // A season is played against the CPU
         mpLobbyBox.classList.toggle('hidden', mode !== 'ONLINE');
         $('opt-skill-wrap').classList.toggle('hidden', !(mode === '1P' || seasonMenu));
+        if (!seasonMenu) lastQuickMode = mode;
         mode1PBtn.className = mode === '1P' ? MODE_BTN_ON : MODE_BTN_OFF;
         mode2PBtn.className = mode === '2P' ? MODE_BTN_ON : MODE_BTN_OFF;
         modeMPBtn.className = mode === 'ONLINE' ? MODE_BTN_ON : MODE_BTN_OFF;
-        $('mode-season-btn').className = seasonMenu ? MODE_BTN_ON : MODE_BTN_OFF;
+        $('mode-season-btn').classList.toggle('on', seasonMenu);
+        $('mode-quick-btn').classList.toggle('on', !seasonMenu);
+        $('quick-modes').classList.toggle('hidden', seasonMenu);
         $('team-pick-label').textContent = seasonMenu ? 'PICK YOUR TEAM FOR A NEW SEASON:' : (mode === 'ONLINE' ? 'PICK YOUR TEAM:' : 'SELECT YOUR TEAM TO KICK OFF:');
         renderSeasonBox();
         renderLobby();
     }
+    let lastQuickMode = '1P';
     $('mode-season-btn').addEventListener('click', () => selectMode('SEASON'));
+    $('mode-quick-btn').addEventListener('click', () => selectMode(lastQuickMode));
     $('season-resume-btn').addEventListener('click', () => showSeasonHub());
     // Leave the current game (a season game stays unplayed on the schedule)
     $('menu-btn').addEventListener('click', () => {
@@ -2568,14 +2584,14 @@
         if (togo <= 2) return pick(['IZ', 'IZ', 'TOSS', 'SLANTS', 'PA']);
         if (down >= 3 && togo >= 7) return pick(['CURLS', 'MESH', 'MESH', 'SLANTS', 'CURLS', 'VERTS']);
         if (lineOfScrimmage >= 88) return pick(['SLANTS', 'MESH', 'IZ', 'TOSS', 'CURLS']);
-        return pick(['IZ', 'TOSS', 'SLANTS', 'CURLS', 'SLANTS', 'PA', 'MESH', 'IZ', 'MESH', 'VERTS']);
+        return pick(['IZ', 'TOSS', 'IZ', 'SLANTS', 'CURLS', 'SLANTS', 'PA', 'MESH', 'IZ', 'TOSS', 'MESH', 'VERTS']); // ~42% runs, like the NFL
     }
     function aiPickDefPlay() {
         const togo = firstDownLine - lineOfScrimmage;
         const pick = (ids) => { const id = ids[Math.floor(Math.random() * ids.length)]; return DEFENSIVE_PLAYS.find(p => p.id === id); };
-        if (togo <= 2 || isTwoPointConversion) return pick(['RUN', 'RUN', 'C1', 'BLITZ']);
-        if (down >= 3 && togo >= 7) return pick(['C3', 'C3', 'BLITZ', 'C1', 'SPY']);
-        return pick(['C1', 'C3', 'C3', 'RUN', 'SPY', 'BLITZ']);
+        if (togo <= 2 || isTwoPointConversion) return pick(['RUN', 'RUN', 'C1', 'C1', 'BLITZ']);
+        if (down >= 3 && togo >= 7) return pick(['C3', 'C3', 'C1', 'SPY', 'C3', 'BLITZ']);
+        return pick(['C1', 'C3', 'C3', 'RUN', 'SPY', 'C1', 'C3', 'BLITZ']);
     }
 
     function setupFormationEntities() {
@@ -2877,7 +2893,7 @@
         def.eng = blk;
         const rusher = isOL(blk) && (def.pos === 'LDE' || def.pos === 'RDE');
         let frames;
-        if (mode === 'PASS') frames = isOL(blk) ? rand(rusher ? 105 : 130, rusher ? 230 : 270) : rand(45, 100);
+        if (mode === 'PASS') frames = isOL(blk) ? rand(rusher ? 70 : 95, rusher ? 185 : 225) : rand(35, 85);
         else if (mode === 'CONVOY') frames = rand(25, 75);
         else if (isOL(blk)) frames = Math.random() < (selectedDefPlay.id === 'RUN' ? 0.28 : 0.17) ? rand(30, 60) : rand(100, 230);
         else frames = rand(40, 110);
@@ -3049,7 +3065,7 @@
     // CPU quarterback: drop, read the progression on time, throw on rhythm or under pressure
     // Reads go short to deep (shot plays excepted) and start when the first route breaks
     const PROGRESSION = { SLANTS: [0, 2, 3, 1, 4], CURLS: [0, 2, 3, 4, 1], VERTS: [1, 3, 4, 0, 2], PA: [2, 1, 0, 3, 4], MESH: [3, 1, 0, 4, 2] };
-    const READ_AT = { SLANTS: 40, CURLS: 68, VERTS: 90, PA: 96, MESH: 58 };
+    const READ_AT = { SLANTS: 56, CURLS: 84, VERTS: 112, PA: 120, MESH: 76 }; // NFL rhythm: ~0.9s quick game to ~2s deep
     function aiQB(q) {
         const play = selectedOffPlay;
         const pressure = nearestOpp(q, defenders, (d) => !d.eng);
@@ -3060,7 +3076,8 @@
             if (pressure.d < 1.4 && playFrame > 30 && Math.random() < 0.25) aiQBDecide(true);
             return;
         }
-        aiQBDecide(pressure.d < 3.0 || playFrame > readAt + 45);
+        // Stand in the pocket: only bail out when a rusher is nearly on him or the play has dragged on
+        aiQBDecide(pressure.d < 1.7 || playFrame > readAt + 70);
     }
     function aiQBDecide(urgent) {
         const order = PROGRESSION[selectedOffPlay.id] || [0, 1, 2, 3, 4];
@@ -3068,17 +3085,19 @@
         for (let i = 0; i <= Math.min(order.length - 1, Math.max(0, step)); i++) {
             const k = order[i];
             const ev = evaluateReceiver(k);
-            if (ev && ev.sep >= 2.4 + Math.max(0, ev.depth - 10) * 0.08) { throwPassToIndex(k); return; }
+            // Reads aren't perfect: sometimes he sees a window that isn't there (or misses one that is)
+            if (ev && ev.sep + gauss() * 0.6 >= 2.7 + Math.max(0, ev.depth - 10) * 0.1) { throwPassToIndex(k); return; }
         }
         if (!urgent) return;
         const bestK = findBestOpenReceiverIndex();
         const ev = evaluateReceiver(bestK);
-        if (ev && ev.sep > 1.4) { throwPassToIndex(bestK); return; }
+        if (ev && ev.sep > 1.9) { throwPassToIndex(bestK); return; }
         const lane = aiRunDir(qb);
         if (lane.clear > 6 && lane.dy > 0.7) { qb.scramble = true; return; }
-        // Nothing open: live for the next down instead of taking the sack
+        // Nothing open: sometimes he gets rid of it, sometimes he hangs on and takes the sack
         const rush = nearestOpp(qb, defenders, (d) => !d.eng);
-        if (rush.d < 2.4 || Math.random() < 0.5) throwAway();
+        if (rush.d < 1.3 && Math.random() < 0.45) throwAway();
+        else if (playFrame > (READ_AT[selectedOffPlay.id] || 80) + 110 && Math.random() < 0.3) throwAway();
     }
 
     // How open is a receiver? Separation at the point where the ball would arrive
@@ -3087,10 +3106,14 @@
         if (!r || !qb || r.role === 'STALK' || r.role === 'OL_RUN' || r.down > 0) return null;
         if (r.route && playFrame < (r.route.delay || 0)) return null;
         const aim = leadPoint(qb, r);
+        // Defenders keep running while the ball is in the air: count how much ground they can close
+        const dist0 = Math.hypot(aim.x - qb.x, aim.y - qb.y);
+        const T = dist0 / passSpeed(dist0) + 6;
         let sep = 99;
         for (const d of defenders) {
             if (d.down > 0) continue;
-            sep = Math.min(sep, Math.hypot(d.x - aim.x, d.y - aim.y) - (d.eng ? -3 : 0));
+            const reach = d.eng ? -3 : d.spd * Math.max(0, T - 12) * 0.55;
+            sep = Math.min(sep, Math.hypot(d.x - aim.x, d.y - aim.y) - reach);
         }
         return { sep, depth: aim.y - lineOfScrimmage, aim };
     }
@@ -3171,7 +3194,7 @@
         const d = Math.hypot(aim.x - qb.x, aim.y - qb.y);
 
         // Accuracy: worse deep, under pressure and on the move
-        let sd = 0.42 + d * 0.027;
+        let sd = 0.5 + d * 0.034;
         const rush = nearestOpp(qb, defenders, (x) => !x.eng);
         if (rush.d < 2.5) sd *= 1.8;
         if (speedOf(qb) > qb.spd * 0.5) sd *= 1.35;
@@ -3224,7 +3247,7 @@
         gameState = 'PASS_IN_AIR';
         fx('throw');
         // Defenders read the throw after a short reaction time
-        for (const dd of defenders) dd.readAt = playFrame + Math.round(cpuDefense() ? rand(4, 10) : rand(6, 13));
+        for (const dd of defenders) dd.readAt = playFrame + Math.round(cpuDefense() ? rand(4, 9) : rand(5, 11));
     }
 
     function resolvePass() {
@@ -3250,8 +3273,9 @@
         }
         if (inBounds && r && dr <= reach) {
             let p = 0.96 - (dr > 1.0 ? 0.1 : 0);
-            const tight = cpuDefense() ? 1.6 : 1.45;
-            if (dd < tight) p *= 0.55 + 0.4 * (dd / tight); // Contested: a defender in the receiver's hip pocket
+            const tight = cpuDefense() ? 1.65 : 1.55;
+            if (dd < tight) p *= 0.32 + 0.6 * (dd / tight); // Contested: a defender in the receiver's hip pocket
+            if (dd < tight && ball.T > 60) p *= 0.75;          // Deep balls in tight coverage are harder still
             if (r.down > 0) p = 0.05;
             if (Math.random() < p) { completePass(r); return; }
         }
@@ -3555,7 +3579,7 @@
             if ((runSeen && reacted) || (player === qb && hasCrossedLOS) || isReturn) d.role = 'PURSUE';
             else if (ballInAir && reacted) {
                 const dl = Math.hypot(d.x - ball.tx, d.y - ball.ty);
-                d.role = (dl < 8 && ['MAN', 'ZONE', 'DEEP', 'SPY'].includes(d.role)) ? 'BALL' : 'PURSUE';
+                d.role = (dl < 8 + ball.T / 18 && ['MAN', 'ZONE', 'DEEP', 'SPY'].includes(d.role)) ? 'BALL' : 'PURSUE'; // Long throws: more time to converge
             }
         }
         if (d.role === 'BALL' && !ballInAir) d.role = 'PURSUE';
@@ -3583,7 +3607,7 @@
                 const r = offense[d.man];
                 if (!r) { d.role = 'PURSUE'; break; }
                 // Smoothed read of the receiver's velocity: cuts create separation
-                const react = cpuDefense() ? 0.1 : 0.085;
+                const react = cpuDefense() ? 0.105 : 0.095;
                 d.tvx += (r.vx - d.tvx) * react;
                 d.tvy += (r.vy - d.tvy) * react;
                 // Inside leverage with a cushion that shrinks as the route gets deep ("stay on top")
@@ -3607,8 +3631,8 @@
                     if (dz < bd) { bd = dz; bestR = r; }
                 }
                 if (bestR) {
-                    tx = d.zx + (bestR.x - d.zx) * 0.55;
-                    ty = d.zy + (bestR.y - d.zy) * 0.55;
+                    tx = d.zx + (bestR.x - d.zx) * 0.72;
+                    ty = d.zy + (bestR.y - d.zy) * 0.72;
                     if (deepZone) ty = Math.max(ty, bestR.y + 2.5);
                 }
                 seek(d, tx, ty, 1, 1.5);
@@ -3638,8 +3662,9 @@
                 break;
             case 'PURSUE':
             default: {
+                // Chasing the ball carrier: good angles make up a little ground (no free breakaways)
                 const tgt = pursuitTarget(d);
-                seek(d, tgt.x, tgt.y, 1, 0.01);
+                seek(d, tgt.x, tgt.y, player && player !== qb ? 1.05 : 1, 0.01);
             }
         }
     }
