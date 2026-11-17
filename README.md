@@ -29,7 +29,7 @@ Live site:
 - **Kicking.** 2025 dynamic kickoff (touchbacks to the 35), punts with fair catches, coverage and returns, distance-based field goals and 33-yard extra points.
 - **Season mode.** Pick any team and play a full NFL season: a 17-game schedule built like the NFL's (division rivals twice, rotating divisions in your conference and the other one), AFC/NFC division standings, 7-team playoffs per conference, and the Super Bowl. Play or sim each game; other games are simulated from team strength. The season hub also shows league leaders (passing, rushing, receiving, touchdowns, sacks, interceptions, tackles) and your team's player stats. Road games are in the other team's stadium, playoff games go to extra overtimes until there's a winner, and the season saves in your browser so you can resume it.
 - **Quick games** against the CPU, in 2P coach mode, or online with a friend.
-- **All 32 teams** with 2025-26 starters, team colors and home/away uniforms. In 1P the CPU defense gets quicker and tighter in coverage with the CPU skill setting (Rookie / Pro / All-Pro).
+- **All 32 teams** with current 2026 starters (taken from team depth charts after the Nov 10, 2026 trade deadline), team colors and home/away uniforms. In 1P the CPU defense gets quicker and tighter in coverage with the CPU skill setting (Rookie / Pro / All-Pro).
 - **Decisions.** You choose on 4th down (go for it / punt / field goal) and after touchdowns (kick / go for 2); the CPU uses a situational chart.
 - **Broadcast look.** Scorebug with timeouts and play clock, a play-by-play ticker, a box score at the final whistle, a fully marked field, stands and goal posts, and uniformed players (home team in color, away in white).
 
