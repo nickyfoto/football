@@ -1305,7 +1305,7 @@
     const DEFENSIVE_PLAYS = [
         { id: 'C1',    name: 'COVER 1 MAN',  desc: 'Press man, one deep safety' },
         { id: 'C3',    name: 'COVER 3 ZONE', desc: 'Three deep, four under' },
-        { id: 'BLITZ', name: 'ZERO BLITZ',   desc: '6 rush, all-out man' },
+        { id: 'BLITZ', name: 'SIX-MAN BLITZ', desc: '6 rush, man under, 1 deep' },
         { id: 'SPY',   name: 'QB SPY',       desc: 'Man coverage + MLB spies QB' },
         { id: 'RUN',   name: 'RUN STUFF',    desc: '8 in the box, fill gaps' }
     ];
@@ -2687,24 +2687,25 @@
             if (call === 'SPY') mlb.role = 'SPY';
             else zone(mlb, bx, L + 7);
         } else if (call === 'C3') {
-            zone(cb1, W / 6, L + 15);
-            zone(cb2, W * 5 / 6, L + 15);
-            zone(fs, MID, L + 16);
+            // Deep thirds sit a bit inside the numbers so seams can be carried; hook/curl defenders get depth
+            zone(cb1, W / 5, L + 16);
+            zone(cb2, W * 4 / 5, L + 16);
+            zone(fs, MID, L + 17);
             zone(ncb, 9, L + 5);
-            zone(wlb, bx - 8, L + 9);
-            zone(mlb, bx + 5, L + 9);
+            zone(wlb, bx - 6, L + 10);
+            zone(mlb, bx + 6, L + 10);
             zone(slb, W - 9, L + 5);
             fs.role = 'ZONE';
         } else if (call === 'BLITZ') {
             wlb.role = 'RUSH';
             mlb.role = 'RUSH';
             man(slb, 8);
-            man(fs, 6);
+            fs.role = 'DEEP'; // One deep safety stays home behind the blitz
         } else if (call === 'RUN') {
             wlb.role = 'FILL';
             mlb.role = 'FILL';
             man(slb, 8);
-            zone(fs, bx + 2, L + 7);
+            zone(fs, bx + 2, L + 11);
         }
         for (const e of defenders) {
             e.cov = e.role === 'MAN' ? `M${e.man}` : (e.role === 'ZONE' ? `Z${e.zx.toFixed(1)},${e.zy.toFixed(1)}` : e.role[0]);
@@ -2876,7 +2877,7 @@
         if (e.eng) return; // Engaged blocks are handled in resolveBlocks()
         const L = lineOfScrimmage;
         const protect = mode === 'PASS' ? qb : player;
-        const range = mode === 'PASS' ? 4.5 : (mode === 'CONVOY' ? 8 : (isOL(e) ? 5.8 : 6.5));
+        const range = mode === 'PASS' ? 4.5 : (mode === 'CONVOY' ? 8 : (isOL(e) ? 4.8 : 6.5));
         const canEngage = mode !== 'CONVOY' || playFrame >= (e.convoyAt || 0);
         let target = null;
         let best = Infinity;
@@ -3112,12 +3113,13 @@
         if (!urgent) return;
         const bestK = findBestOpenReceiverIndex();
         const ev = evaluateReceiver(bestK);
-        if (ev && ev.sep > 1.9) { throwPassToIndex(bestK); return; }
+        const rush = nearestOpp(qb, defenders, (d) => !d.eng);
+        // Under heat he'll take a tighter window (the "hot" throw against a blitz)
+        if (ev && ev.sep > (rush.d < 2.2 ? 1.0 : 1.9)) { throwPassToIndex(bestK); return; }
         const lane = aiRunDir(qb);
         if (lane.clear > 6 && lane.dy > 0.7) { qb.scramble = true; return; }
-        // Nothing open: sometimes he gets rid of it, sometimes he hangs on and takes the sack
-        const rush = nearestOpp(qb, defenders, (d) => !d.eng);
-        if (rush.d < 1.3 && Math.random() < 0.45) throwAway();
+        // Nothing open: usually he gets rid of it, sometimes he hangs on and takes the sack
+        if (rush.d < 1.6 && Math.random() < 0.7) throwAway();
         else if (playFrame > (READ_AT[selectedOffPlay.id] || 80) + 110 && Math.random() < 0.3) throwAway();
     }
 
@@ -3267,7 +3269,7 @@
         gameState = 'PASS_IN_AIR';
         fx('throw');
         // Defenders read the throw after a short reaction time
-        for (const dd of defenders) dd.readAt = playFrame + Math.round(cpuDefense() ? rand(4, 9) : rand(5, 11));
+        for (const dd of defenders) dd.readAt = playFrame + Math.round(rand(4, 9));
     }
 
     function resolvePass() {
@@ -3294,7 +3296,7 @@
         if (inBounds && r && dr <= reach) {
             let p = 0.96 - (dr > 1.0 ? 0.1 : 0);
             // Tighter windows in the red zone, where the field shrinks
-            const tight = (cpuDefense() ? 1.65 : 1.55) + (lineOfScrimmage >= 80 ? 0.25 : 0);
+            const tight = 1.65 + (lineOfScrimmage >= 80 ? 0.25 : 0);
             if (dd < tight) p *= 0.32 + 0.6 * (dd / tight); // Contested: a defender in the receiver's hip pocket
             if (dd < tight && ball.T > 60) p *= 0.75;          // Deep balls in tight coverage are harder still
             if (r.down > 0) p = 0.05;
@@ -3538,7 +3540,7 @@
         playLog.type = 'run';
         playLog.rusher = rbE;
         ball.state = 'held';
-        for (const d of defenders) d.readAt = playFrame + Math.round(d.role === 'FILL' ? rand(4, 10) : rand(12, 24));
+        for (const d of defenders) d.readAt = playFrame + Math.round(['FILL', 'RUSH'].includes(d.role) ? rand(2, 5) : rand(12, 24));
     }
 
     function offenseRoleAI(e) {
@@ -3606,7 +3608,8 @@
         if (d.role === 'BALL' && !ballInAir) d.role = 'PURSUE';
 
         // Play action: second-level defenders bite toward the line for a moment
-        if (selectedOffPlay.playAction && playFrame < selectedOffPlay.playAction && ['ZONE', 'SPY', 'FILL', 'DEEP'].includes(d.role)) {
+        // (Deep-zone defenders and the deep safety stay home: only the second level bites)
+        if (selectedOffPlay.playAction && playFrame < selectedOffPlay.playAction && (['SPY', 'FILL'].includes(d.role) || (d.role === 'ZONE' && d.zy < L + 13))) {
             seek(d, d.x + (ballSpotX - d.x) * 0.1, L + 2.2, 0.55);
             return;
         }
@@ -3619,16 +3622,17 @@
             }
             case 'FILL': {
                 const rbE = offense[6];
-                const tgt = player && player !== qb ? pursuitTarget(d) : (rbE ? { x: rbE.x, y: L + 0.5 } : { x: d.x, y: L });
+                // Read the back and scrape to the line at depth, then attack once the ball is handed off
+                const tgt = player && player !== qb ? pursuitTarget(d) : (rbE ? { x: rbE.x, y: L + 2.5 } : { x: d.x, y: L + 2.5 });
                 if (playFrame > 50 && player === qb) d.role = 'RUSH';
-                seek(d, tgt.x, tgt.y, 1, 0.3);
+                seek(d, tgt.x, tgt.y, player && player !== qb ? 1 : 0.7, 0.6);
                 break;
             }
             case 'MAN': {
                 const r = offense[d.man];
                 if (!r) { d.role = 'PURSUE'; break; }
                 // Smoothed read of the receiver's velocity: cuts create separation
-                const react = cpuDefense() ? 0.105 : 0.095;
+                const react = 0.105;
                 d.tvx += (r.vx - d.tvx) * react;
                 d.tvy += (r.vy - d.tvy) * react;
                 // Inside leverage with a cushion that shrinks as the route gets deep ("stay on top")
@@ -3644,7 +3648,7 @@
                 let ty = d.zy;
                 const deepZone = d.zy >= L + 13;
                 let bestR = null;
-                let bd = 8;
+                let bd = deepZone ? 12 : 8;
                 for (const k of RECV) {
                     const r = offense[k];
                     if (!r || r.role !== 'ROUTE') continue;
@@ -3652,9 +3656,11 @@
                     if (dz < bd) { bd = dz; bestR = r; }
                 }
                 if (bestR) {
-                    tx = d.zx + (bestR.x - d.zx) * 0.72;
-                    ty = d.zy + (bestR.y - d.zy) * 0.72;
-                    if (deepZone) ty = Math.max(ty, bestR.y + 2.5);
+                    // Match the route in your zone: deep defenders stay on top, underneath defenders squeeze
+                    const k = deepZone ? 0.95 : 0.85;
+                    tx = d.zx + (bestR.x - d.zx) * k;
+                    ty = d.zy + (bestR.y - d.zy) * k;
+                    if (deepZone) ty = Math.max(ty, bestR.y + 2);
                 }
                 seek(d, tx, ty, 1, 1.5);
                 break;
@@ -3670,7 +3676,7 @@
                     const r = offense[k];
                     if (!r || r.role !== 'ROUTE') continue;
                     if (r.y > deepest - 6) { sx += r.x; n++; }
-                    deepest = Math.max(deepest, r.y + 5);
+                    deepest = Math.max(deepest, r.y + 3);
                 }
                 seek(d, n ? sx / n : MID, Math.min(108, deepest), 1, 2);
                 break;
