@@ -2930,7 +2930,8 @@
             if (o.down > 0 || o.eng || o.blockCd > 0) continue;
             const d = dist(e, o);
             if (d > range) continue;
-            if (mode === 'PASS' && !['RUSH', 'FILL', 'SPY'].includes(o.role)) continue;
+            // Pass protection picks up assigned rushers and anyone else who comes across the line (a blitz you steer yourself)
+            if (mode === 'PASS' && !['RUSH', 'FILL', 'SPY'].includes(o.role) && o.y > lineOfScrimmage + 1) continue;
             // Downfield blockers have to get between the defender and the ball carrier (no blocks in the back)
             if (mode === 'CONVOY' && player && dist(e, player) > dist(o, player) - 0.4) continue;
             // Prefer defenders near the ball and in front of us
@@ -2960,7 +2961,12 @@
         def.eng = blk;
         const rusher = isOL(blk) && (def.pos === 'LDE' || def.pos === 'RDE');
         let frames;
-        if (mode === 'PASS') frames = isOL(blk) ? rand(rusher ? 70 : 95, rusher ? 185 : 225) : rand(35, 85);
+        const lineman = ['LDE', 'RDE', 'DT', 'NT'].includes(def.pos);
+        if (mode === 'PASS') {
+            if (!isOL(blk)) frames = rand(35, 85);                          // Backs and tight ends chipping
+            else if (!lineman) frames = rand(40, 115);                      // Blitzing linebackers / DBs are slippery
+            else frames = rand(rusher ? 50 : 60, rusher ? 165 : 180);       // Edge and interior rushers both win
+        }
         else if (mode === 'CONVOY') frames = rand(25, 75);
         else if (isOL(blk)) frames = Math.random() < (selectedDefPlay.id === 'RUN' ? 0.28 : 0.17) ? rand(30, 60) : rand(100, 230);
         else frames = rand(40, 110);
@@ -2998,7 +3004,8 @@
                 def.eng = null;
                 blk.eng = null;
                 blk.blockCd = 40;
-                def.blockCd = 25;
+                // A rusher who beats his man has a window before anyone can pick him up again
+                def.blockCd = blk.blockMode === 'PASS' ? 75 : 25;
             }
         }
     }
@@ -3134,14 +3141,26 @@
     const PROGRESSION = { SLANTS: [0, 2, 3, 1, 4], CURLS: [0, 2, 3, 4, 1], VERTS: [1, 3, 4, 0, 2], PA: [2, 1, 0, 3, 4], MESH: [3, 1, 0, 4, 2],
         SMASH: [0, 2, 1, 3, 4], SCREEN: [4, 0, 2, 3, 1], YCROSS: [2, 1, 3, 0, 4] };
     const READ_AT = { SLANTS: 56, CURLS: 84, VERTS: 112, PA: 120, MESH: 76, SMASH: 70, SCREEN: 58, YCROSS: 100 }; // NFL rhythm: ~0.9s quick game to ~2s deep
+    // A quarterback only feels pressure he can see: rushers in front of him, or right on top of him.
+    // Blind-side blitzes (from any position) get home.
+    function qbSees(q, d) {
+        const dx = d.x - q.x;
+        const dy = d.y - q.y;
+        const dd = Math.hypot(dx, dy);
+        if (dd < 0.9) return true;
+        return dy > -0.6 && Math.abs(Math.atan2(dx, Math.max(0.01, dy))) < 1.25; // ~70 degrees either side of downfield
+    }
     function aiQB(q) {
         const play = selectedOffPlay;
-        const pressure = nearestOpp(q, defenders, (d) => !d.eng);
+        const pressure = nearestOpp(q, defenders, (d) => !d.eng && qbSees(q, d));
         if (q.scramble) { aiCarrier(q); return; }
         qbAutoDrop(q);
         const readAt = READ_AT[play.id] || 80;
         if (playFrame < readAt || playFrame % 10 !== 0) {
-            if (pressure.d < 1.4 && playFrame > 30 && Math.random() < 0.25) aiQBDecide(true);
+            // Feeling pressure takes a beat (~0.25s), long enough for a rusher to close and finish
+            if (pressure.d < 1.4 && playFrame > 30 && Math.random() < 0.06) aiQBDecide(true);
+            // An unblocked blitzer coming at him in plain sight: get the ball out to the hot route
+            else if (pressure.d < 3 && pressure.ent && pressure.ent.y < lineOfScrimmage + 0.5 && playFrame > 24 && Math.random() < 0.035) aiQBDecide(true);
             return;
         }
         // Stand in the pocket: only bail out when a rusher is nearly on him or the play has dragged on
@@ -3159,7 +3178,7 @@
         if (!urgent) return;
         const bestK = findBestOpenReceiverIndex();
         const ev = evaluateReceiver(bestK);
-        const rush = nearestOpp(qb, defenders, (d) => !d.eng);
+        const rush = nearestOpp(qb, defenders, (d) => !d.eng && qbSees(qb, d));
         // Under heat he'll take a tighter window (the "hot" throw against a blitz)
         // No forcing bombs on a broken play: deep only if he's clearly open
         if (ev && ev.sep > (rush.d < 2.2 ? 1.0 : 1.9) && (ev.depth < 25 || ev.sep > 4)) { throwPassToIndex(bestK); return; }
@@ -3683,6 +3702,8 @@
             case 'MAN': {
                 const r = offense[d.man];
                 if (!r) { d.role = 'PURSUE'; break; }
+                // His man is staying in to block: sit at the line and wait for him to release
+                if (r.route && playFrame < (r.route.delay || 0) && r.y < L) { seek(d, r.x, L + 2.2, 0.8, 0.8); break; }
                 // Smoothed read of the receiver's velocity: cuts create separation
                 const react = 0.105;
                 d.tvx += (r.vx - d.tvx) * react;
