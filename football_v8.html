@@ -3108,7 +3108,7 @@
             const k = order[i];
             const ev = evaluateReceiver(k);
             // Reads aren't perfect: sometimes he sees a window that isn't there (or misses one that is)
-            if (ev && ev.sep + gauss() * 0.6 >= 2.7 + Math.max(0, ev.depth - 10) * 0.1) { throwPassToIndex(k); return; }
+            if (ev && ev.sep + gauss() * 0.6 >= 2.7 + Math.max(0, ev.depth - 10) * 0.1 + (ev.depth > 22 ? 1.5 : 0)) { throwPassToIndex(k); return; } // Deep shots only when he's clearly behind them
         }
         if (!urgent) return;
         const bestK = findBestOpenReceiverIndex();
@@ -3298,7 +3298,9 @@
             // Tighter windows in the red zone, where the field shrinks
             const tight = 1.65 + (lineOfScrimmage >= 80 ? 0.25 : 0);
             if (dd < tight) p *= 0.32 + 0.6 * (dd / tight); // Contested: a defender in the receiver's hip pocket
-            if (dd < tight && ball.T > 60) p *= 0.75;          // Deep balls in tight coverage are harder still
+            if (dd < tight && ball.T > 60) p *= 0.5;           // Deep balls in tight coverage are rarely caught
+            // On a deep ball a defender closing within ~2.5 yards can still get a hand in
+            else if (ball.T > 60 && dd < 2.6) p *= 0.55 + 0.4 * ((dd - tight) / (2.6 - tight));
             if (r.down > 0) p = 0.05;
             if (Math.random() < p) { completePass(r); return; }
         }
@@ -3649,18 +3651,31 @@
                 const deepZone = d.zy >= L + 13;
                 let bestR = null;
                 let bd = deepZone ? 12 : 8;
+                let deepest = -Infinity;
                 for (const k of RECV) {
                     const r = offense[k];
                     if (!r || r.role !== 'ROUTE') continue;
-                    const dz = Math.hypot(r.x - d.zx, r.y - d.zy);
-                    if (dz < bd) { bd = dz; bestR = r; }
+                    if (deepZone) {
+                        // Deep defenders take the deepest threat in their third, not just the nearest body
+                        if (Math.abs(r.x - d.zx) < 11 && r.y > L + 8 && r.y > deepest) { deepest = r.y; bestR = r; }
+                    } else {
+                        const dz = Math.hypot(r.x - d.zx, r.y - d.zy);
+                        if (dz < bd) { bd = dz; bestR = r; }
+                    }
                 }
                 if (bestR) {
                     // Match the route in your zone: deep defenders stay on top, underneath defenders squeeze
                     const k = deepZone ? 0.95 : 0.85;
                     tx = d.zx + (bestR.x - d.zx) * k;
                     ty = d.zy + (bestR.y - d.zy) * k;
-                    if (deepZone) ty = Math.max(ty, bestR.y + 2);
+                    if (deepZone) {
+                        // Stay on top of anything vertical: keep a cushion that grows with the receiver's speed
+                        ty = Math.max(ty, bestR.y + 3 + Math.max(0, bestR.vy) * 12);
+                    } else if (bestR.y < d.zy + 3) {
+                        // Underneath: jump routes crossing in front of you (slants, digs, drags)
+                        tx = bestR.x + bestR.vx * 8;
+                        ty = bestR.y + 0.6;
+                    }
                 }
                 seek(d, tx, ty, 1, 1.5);
                 break;
