@@ -1281,6 +1281,10 @@
         SWING:   { pts: [[-3, -0.5], [-8, 2.5]], end: 'cont' },
         CHECK:   { pts: [[0, 0], [-4, 3]], end: 'sit', delay: 70 },
         PAFLAT:  { pts: [[2, 0.5], [-6, 3]], end: 'cont', delay: 40 },
+        HITCH:   { pts: [[0, 6], [0.4, 5]], end: 'sit' },
+        DEEPX:   { pts: [[0, 6], [13, 13]], end: 'cont' },
+        SMASHC:  { pts: [[0, 9], [-6, 16]], end: 'cont' },
+        SCREEN:  { pts: [[-3, 1.2], [-7.5, 2.4]], end: 'sit', delay: 30 },
         BLOCK:   null
     };
 
@@ -1289,7 +1293,11 @@
         { id: 'IZ',     name: 'INSIDE ZONE',  desc: 'Downhill run behind the line',   type: 'RUN',  form: 'PISTOL',
           routes: ['BLOCK', 'BLOCK', 'BLOCK', 'BLOCK', null], rbPath: [[0.7, -4.0], [1.4, 0.5], [1.6, 6], [1.6, 30]], handoff: 24 },
         { id: 'TOSS',   name: 'OUTSIDE TOSS', desc: 'Pitch wide, beat them to the edge', type: 'RUN', form: 'PISTOL',
-          routes: ['BLOCK', 'BLOCK', 'BLOCK', 'BLOCK', null], rbPath: [[3.5, 1.5], [10, 3.5], [12, 9], [12, 30]], handoff: 14, side: 1 },
+          routes: ['BLOCK', 'BLOCK', 'BLOCK', 'BLOCK', null], rbPath: [[3.5, 1.5], [10, 3.5], [12, 9], [12, 30]], handoffAt: 14, side: 1 },
+        { id: 'POWER',  name: 'POWER',        desc: 'Off tackle to the left, lead blocks', type: 'RUN', form: 'PISTOL',
+          routes: ['BLOCK', 'BLOCK', 'BLOCK', 'BLOCK', null], rbPath: [[0.7, -4.0], [2.4, 0.5], [2.9, 6], [2.9, 30]], side: -1 },
+        { id: 'DRAW',   name: 'HB DRAW',      desc: 'Show pass, hand off late',       type: 'RUN',  form: 'GUN', drop: 1,
+          routes: ['GO', 'BLOCK', 'GO', 'SEAM', null], rbPath: [[1.5, -5.2], [0.6, -5.8], [0.9, 0.5], [0.9, 6], [0.9, 30]], handoffAt: 50, rbWait: 30 },
         { id: 'SLANTS', name: 'QUICK SLANTS', desc: 'Fast 3-step timing throws',      type: 'PASS', form: 'GUN', drop: 1.5,
           routes: ['SLANT', 'STICK', 'SLANT', 'OUT', 'SWING'] },
         { id: 'CURLS',  name: 'CURL FLATS',   desc: 'Sit in the zone holes at 10',     type: 'PASS', form: 'GUN', drop: 2.5,
@@ -1299,12 +1307,21 @@
         { id: 'PA',     name: 'PA POST',      desc: 'Fake the run, shot over the top', type: 'PASS', form: 'PISTOL', drop: 3, playAction: 42,
           routes: ['POST', 'DRAG', 'DIG', 'CORNER', 'PAFLAT'] },
         { id: 'MESH',   name: 'DRAGS & DIG',  desc: 'Crossers that beat man coverage',  type: 'PASS', form: 'GUN', drop: 2,
-          routes: ['DIG', 'DRAG', 'GO', 'DRAG', 'SWING'] }
+          routes: ['DIG', 'DRAG', 'GO', 'DRAG', 'SWING'] },
+        { id: 'SMASH',  name: 'SMASH',        desc: 'Hitches outside, corners over the top', type: 'PASS', form: 'GUN', drop: 2,
+          routes: ['HITCH', 'SMASHC', 'HITCH', 'SMASHC', 'CHECK'] },
+        { id: 'SCREEN', name: 'RB SCREEN',    desc: 'Let them rush, dump it to the back', type: 'PASS', form: 'GUN', drop: 2.5,
+          routes: ['BLOCK', 'BLOCK', 'BLOCK', 'BLOCK', 'SCREEN'] },
+        { id: 'YCROSS', name: 'Y CROSS',      desc: 'Tight end deep across the middle', type: 'PASS', form: 'GUN', drop: 3,
+          routes: ['GO', 'DEEPX', 'CURL', 'FLAT', 'CHECK'] }
     ];
 
     const DEFENSIVE_PLAYS = [
         { id: 'C1',    name: 'COVER 1 MAN',  desc: 'Press man, one deep safety' },
+        { id: 'C2',    name: 'TAMPA 2',      desc: 'Two deep halves, MLB runs the middle' },
         { id: 'C3',    name: 'COVER 3 ZONE', desc: 'Three deep, four under' },
+        { id: 'C4',    name: 'COVER 4',      desc: 'Quarters: four deep, take away the bomb' },
+        { id: 'FIRE',  name: 'FIRE ZONE',    desc: '5 rush, three deep, three under' },
         { id: 'BLITZ', name: 'SIX-MAN BLITZ', desc: '6 rush, man under, 1 deep' },
         { id: 'SPY',   name: 'QB SPY',       desc: 'Man coverage + MLB spies QB' },
         { id: 'RUN',   name: 'RUN STUFF',    desc: '8 in the box, fill gaps' }
@@ -2574,7 +2591,7 @@
         playcallTitle.innerText = onDefScreen
             ? `${team.name} DEFENSE • CALL A COVERAGE • TAP A DEFENDER TO CONTROL HIM`
             : `${team.name} OFFENSE • ${isTwoPointConversion ? '2-POINT TRY' : 'CALL A PLAY'}`;
-        playcallGrid.className = `grid gap-2 ${onDefScreen ? 'grid-cols-3 md:grid-cols-5' : 'grid-cols-3 md:grid-cols-7'}`;
+        playcallGrid.className = `grid gap-2 ${onDefScreen ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-3 md:grid-cols-6'}`;
         playcallGrid.innerHTML = '';
         plays.forEach(play => {
             const btn = document.createElement('div');
@@ -2599,20 +2616,21 @@
         const opp = possession === 'HOME' ? scoreAway : scoreHome;
         const hurry = (quarter === 2 || quarter >= 4) && gameClock < 150 && off <= opp;
         const pick = (ids) => { const id = ids[Math.floor(Math.random() * ids.length)]; return OFFENSIVE_PLAYS.find(p => p.id === id); };
-        if (isTwoPointConversion) return pick(['SLANTS', 'MESH', 'IZ', 'SLANTS']);
-        if (hurry) return pick(['SLANTS', 'CURLS', 'VERTS', 'MESH', 'CURLS']);
-        if (quarter >= 4 && off > opp && gameClock < 300) return pick(['IZ', 'IZ', 'TOSS', 'SLANTS']);
-        if (togo <= 2) return pick(['IZ', 'IZ', 'TOSS', 'SLANTS', 'PA']);
-        if (down >= 3 && togo >= 7) return pick(['CURLS', 'MESH', 'MESH', 'SLANTS', 'CURLS', 'VERTS']);
-        if (lineOfScrimmage >= 88) return pick(['SLANTS', 'MESH', 'IZ', 'TOSS', 'CURLS']);
-        return pick(['IZ', 'TOSS', 'IZ', 'SLANTS', 'CURLS', 'SLANTS', 'PA', 'MESH', 'IZ', 'TOSS', 'MESH', 'VERTS']); // ~42% runs, like the NFL
+        if (isTwoPointConversion) return pick(['SLANTS', 'MESH', 'IZ', 'SLANTS', 'SMASH', 'POWER']);
+        if (hurry) return pick(['SLANTS', 'CURLS', 'VERTS', 'MESH', 'CURLS', 'SMASH', 'YCROSS']);
+        if (quarter >= 4 && off > opp && gameClock < 300) return pick(['IZ', 'IZ', 'TOSS', 'SLANTS', 'POWER', 'POWER']);
+        if (togo <= 2) return pick(['IZ', 'IZ', 'TOSS', 'SLANTS', 'PA', 'POWER', 'POWER']);
+        if (down >= 3 && togo >= 7) return pick(['CURLS', 'MESH', 'MESH', 'SLANTS', 'CURLS', 'VERTS', 'SMASH', 'YCROSS', 'SCREEN', 'DRAW']);
+        if (lineOfScrimmage >= 88) return pick(['SLANTS', 'MESH', 'IZ', 'TOSS', 'CURLS', 'SMASH', 'POWER']);
+        return pick(['IZ', 'TOSS', 'IZ', 'SLANTS', 'CURLS', 'SLANTS', 'PA', 'MESH', 'IZ', 'TOSS', 'MESH', 'VERTS',
+            'POWER', 'DRAW', 'SMASH', 'SCREEN', 'YCROSS', 'POWER']); // ~44% runs, like the NFL
     }
     function aiPickDefPlay() {
         const togo = firstDownLine - lineOfScrimmage;
         const pick = (ids) => { const id = ids[Math.floor(Math.random() * ids.length)]; return DEFENSIVE_PLAYS.find(p => p.id === id); };
-        if (togo <= 2 || isTwoPointConversion) return pick(['RUN', 'RUN', 'C1', 'C1', 'BLITZ']);
-        if (down >= 3 && togo >= 7) return pick(['C3', 'C3', 'C1', 'SPY', 'C3', 'BLITZ']);
-        return pick(['C1', 'C3', 'C3', 'RUN', 'SPY', 'C1', 'C3', 'BLITZ']);
+        if (togo <= 2 || isTwoPointConversion) return pick(['RUN', 'RUN', 'C1', 'C1', 'BLITZ', 'FIRE']);
+        if (down >= 3 && togo >= 7) return pick(['C3', 'C1', 'SPY', 'C3', 'BLITZ', 'C2', 'C4', 'C4', 'FIRE']);
+        return pick(['C1', 'C3', 'C3', 'RUN', 'SPY', 'C1', 'BLITZ', 'C2', 'C4', 'FIRE']);
     }
 
     function setupFormationEntities() {
@@ -2660,7 +2678,7 @@
         const L = lineOfScrimmage;
         const bx = ballSpotX;
         const call = selectedDefPlay.id;
-        const press = call !== 'C3';
+        const press = ['C1', 'C2', 'BLITZ', 'SPY', 'RUN'].includes(call);
         const lbDepth = call === 'RUN' ? 3.6 : (call === 'BLITZ' ? 2.6 : 4.6);
         const wr1 = offense[7], te = offense[8], wr2 = offense[9], slot = offense[10];
 
@@ -2706,6 +2724,33 @@
             mlb.role = 'FILL';
             man(slb, 8);
             zone(fs, bx + 2, L + 11);
+        } else if (call === 'C2') {
+            // Tampa 2: corners squat in the flats, two deep halves, the MLB runs to the deep middle hole
+            zone(cb1, 7, L + 4);
+            zone(cb2, W - 7, L + 4);
+            zone(ncb, W / 4, L + 15);
+            zone(fs, W * 3 / 4, L + 15);
+            zone(wlb, bx - 7, L + 8);
+            zone(mlb, bx, L + 13.5);
+            zone(slb, bx + 7, L + 8);
+        } else if (call === 'C4') {
+            // Quarters: four deep, three underneath
+            zone(cb1, W / 8 + 1, L + 14);
+            zone(cb2, W * 7 / 8 - 1, L + 14);
+            zone(ncb, W * 3 / 8, L + 14);
+            zone(fs, W * 5 / 8, L + 14);
+            zone(wlb, bx - 7, L + 6);
+            zone(mlb, bx, L + 8);
+            zone(slb, bx + 7, L + 6);
+        } else if (call === 'FIRE') {
+            // Fire zone: the weak linebacker blitzes, three deep and three under behind it
+            wlb.role = 'RUSH';
+            zone(cb1, W / 5, L + 16);
+            zone(cb2, W * 4 / 5, L + 16);
+            zone(fs, MID, L + 17);
+            zone(ncb, bx - 7, L + 7); // Nickel replaces the blitzing linebacker in the hook/curl
+            zone(mlb, bx, L + 9);
+            zone(slb, W - 9, L + 5);
         }
         for (const e of defenders) {
             e.cov = e.role === 'MAN' ? `M${e.man}` : (e.role === 'ZONE' ? `Z${e.zx.toFixed(1)},${e.zy.toFixed(1)}` : e.role[0]);
@@ -3086,8 +3131,9 @@
 
     // CPU quarterback: drop, read the progression on time, throw on rhythm or under pressure
     // Reads go short to deep (shot plays excepted) and start when the first route breaks
-    const PROGRESSION = { SLANTS: [0, 2, 3, 1, 4], CURLS: [0, 2, 3, 4, 1], VERTS: [1, 3, 4, 0, 2], PA: [2, 1, 0, 3, 4], MESH: [3, 1, 0, 4, 2] };
-    const READ_AT = { SLANTS: 56, CURLS: 84, VERTS: 112, PA: 120, MESH: 76 }; // NFL rhythm: ~0.9s quick game to ~2s deep
+    const PROGRESSION = { SLANTS: [0, 2, 3, 1, 4], CURLS: [0, 2, 3, 4, 1], VERTS: [1, 3, 4, 0, 2], PA: [2, 1, 0, 3, 4], MESH: [3, 1, 0, 4, 2],
+        SMASH: [0, 2, 1, 3, 4], SCREEN: [4, 0, 2, 3, 1], YCROSS: [2, 1, 3, 0, 4] };
+    const READ_AT = { SLANTS: 56, CURLS: 84, VERTS: 112, PA: 120, MESH: 76, SMASH: 70, SCREEN: 58, YCROSS: 100 }; // NFL rhythm: ~0.9s quick game to ~2s deep
     function aiQB(q) {
         const play = selectedOffPlay;
         const pressure = nearestOpp(q, defenders, (d) => !d.eng);
@@ -3115,7 +3161,8 @@
         const ev = evaluateReceiver(bestK);
         const rush = nearestOpp(qb, defenders, (d) => !d.eng);
         // Under heat he'll take a tighter window (the "hot" throw against a blitz)
-        if (ev && ev.sep > (rush.d < 2.2 ? 1.0 : 1.9)) { throwPassToIndex(bestK); return; }
+        // No forcing bombs on a broken play: deep only if he's clearly open
+        if (ev && ev.sep > (rush.d < 2.2 ? 1.0 : 1.9) && (ev.depth < 25 || ev.sep > 4)) { throwPassToIndex(bestK); return; }
         const lane = aiRunDir(qb);
         if (lane.clear > 6 && lane.dy > 0.7) { qb.scramble = true; return; }
         // Nothing open: usually he gets rid of it, sometimes he hangs on and takes the sack
@@ -3137,6 +3184,8 @@
             if (d.down > 0) continue;
             const reach = d.eng ? -3 : d.spd * Math.max(0, T - 12) * 0.55;
             sep = Math.min(sep, Math.hypot(d.x - aim.x, d.y - aim.y) - reach);
+            // Deep throws: a defender already running with the receiver stays with him (trail coverage)
+            if (!d.eng && aim.y - lineOfScrimmage > 18) sep = Math.min(sep, Math.hypot(d.x - r.x, d.y - r.y) * 1.15 + 0.3);
         }
         return { sep, depth: aim.y - lineOfScrimmage, aim };
     }
@@ -3464,7 +3513,7 @@
         // --- Run play mesh / pitch ---
         if (!isReturn && play.type === 'RUN' && player === qb && ball.state === 'held') {
             const rbE = offense[6];
-            const meshReady = play.id === 'TOSS' ? playFrame >= play.handoff : (playFrame >= 12 && dist(rbE, qb) < 1.4);
+            const meshReady = play.handoffAt ? playFrame >= play.handoffAt : (playFrame >= 12 && dist(rbE, qb) < 1.4);
             if (meshReady || playFrame > 70) doHandoff(rbE);
         }
 
@@ -3563,6 +3612,7 @@
                 } else routeAI(e);
                 break;
             case 'RB_PATH':
+                if (playFrame < (selectedOffPlay.rbWait || 0)) { seek(e, e.path[0][0], e.path[0][1], 0.3, 0.5); break; } // Draw: sell pass protection first
                 if (!e.path || e.pi >= e.path.length) { steer(e, 0, 1, 1); break; }
                 seek(e, e.path[e.pi][0], e.path[e.pi][1], 1, 0.01);
                 if (Math.hypot(e.path[e.pi][0] - e.x, e.path[e.pi][1] - e.y) < 0.8) e.pi++;
