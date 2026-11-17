@@ -3153,7 +3153,17 @@
     function aiQB(q) {
         const play = selectedOffPlay;
         const pressure = nearestOpp(q, defenders, (d) => !d.eng && qbSees(q, d));
-        if (q.scramble) { aiCarrier(q); return; }
+        if (q.scramble) {
+            // Hit the lane he picked through the rush, then run like a back
+            if (q.path && q.y < lineOfScrimmage - 0.5) {
+                if (q.pi === 0 && Math.abs(q.path[0][0] - q.x) < 1.2) q.pi = 1;
+                const [tx, ty] = q.path[Math.min(q.pi, q.path.length - 1)];
+                steer(q, tx - q.x, ty - q.y, 1);
+                const n = nearestOpp(q, defenders, (d) => !d.eng && d.y > q.y - 0.5);
+                if (q.jukeCd <= 0 && n.ent && n.d < 1.8 && Math.random() < 0.08) jukeMove(q, Math.sign(q.x - n.ent.x) || 1);
+            } else aiCarrier(q);
+            return;
+        }
         if (q.escape) { qbEscape(q, pressure); return; }
         qbAutoDrop(q);
         const readAt = READ_AT[play.id] || 80;
@@ -3181,6 +3191,56 @@
             room = Math.min(room, Math.hypot(dx, dy));
         }
         return room;
+    }
+    // A running lane past the rush: no free defender between him and ~7 yards past the line in that lane
+    // (rushers he's already beaten, behind him, don't count)
+    // A running lane: a real gap in the blocks (or open edge after a rollout) with no free rusher in it,
+    // and nobody in coverage sitting right where he'd cross the line
+    function qbScrambleLane(q) {
+        const L = lineOfScrimmage;
+        const mob = qbMobility(q);
+        const isCover = (d) => !d.eng && ['MAN', 'ZONE', 'DEEP'].includes(d.role);
+        for (const d of defenders) {
+            if (d.down > 0 || d.eng || isCover(d)) continue;
+            if (d.y > q.y - 1.5 && Math.hypot(d.x - q.x, d.y - q.y) < 2.6 - 0.6 * mob) return null;
+        }
+        let best = null;
+        let bestScore = -Infinity;
+        for (let k = -4; k <= 4; k++) {
+            const px = clamp(q.x + k * 1.2, 2.5, W - 2.5);
+            let open = true;
+            for (const d of defenders) {
+                if (d.down > 0 || isCover(d)) continue;
+                if (d.y < q.y - 0.5 || d.y > L + 2) continue;
+                const t = clamp((d.y - q.y) / Math.max(1, L - q.y), 0, 1);
+                const lx = q.x + (px - q.x) * Math.min(1, t * 2.5); // Out to the lane quickly, then straight up
+                if (Math.abs(d.x - lx) < (d.eng ? 1.35 : 1.7)) { open = false; break; }
+            }
+            if (!open) continue;
+            let cov = 12;
+            for (const d of defenders) {
+                if (d.down > 0 || !isCover(d)) continue;
+                cov = Math.min(cov, Math.hypot(d.x - px, d.y - (L + 3)));
+            }
+            if (cov < 4 - 1.5 * mob) continue;
+            const score = Math.min(cov, 8) - Math.abs(k) * 0.6;
+            if (score > bestScore) { bestScore = score; best = px; }
+        }
+        return best;
+    }
+    function qbTakeOff(q, laneX) {
+        q.escape = null;
+        q.scramble = true;
+        q.path = [[laneX, Math.min(q.y + 2, lineOfScrimmage - 1)], [laneX, lineOfScrimmage + 3]];
+        q.pi = Math.abs(laneX - q.x) < 1.2 ? 1 : 0;
+        // Explosive first steps when he takes off
+        const bx = laneX - q.x;
+        const by = q.path[q.pi][1] - q.y;
+        const bl = Math.hypot(bx, by) || 1;
+        q.elusive = Math.max(q.elusive, 20);
+        const burst = q.spd * (0.5 + 0.2 * qbMobility(q));
+        if ((q.vx * bx + q.vy * by) / bl < burst) { q.vx = bx / bl * burst; q.vy = by / bl * burst; }
+        if (playLog) playLog.type = 'scramble';
     }
     // 0 = statue, 1 = the fastest QBs in the league
     function qbMobility(q) { return clamp((q.spd * 60 - 7.8) / 1.8, 0, 1); }
@@ -3244,8 +3304,9 @@
             return;
         }
         if (e.t % 8 === 0 && e.t > 10) {
-            // Wide-open grass: tuck it and go before the lane closes
-            if (qbRunRoom(q) > 7 - 2 * qbMobility(q)) { q.escape = null; q.scramble = true; return; }
+            // A lane opens: tuck it and go before it closes
+            const laneX = qbScrambleLane(q);
+            if (laneX !== null && Math.random() < 0.3 + 0.6 * qbMobility(q)) { qbTakeOff(q, laneX); return; }
             const bestK = findBestOpenReceiverIndex();
             const ev = evaluateReceiver(bestK);
             if (ev && ev.sep > (pressure.d < 2 ? 1.6 : 2.3) && (ev.depth < 25 || ev.sep > 4)) { throwPassToIndex(bestK); return; }
@@ -3277,7 +3338,14 @@
             // Reads aren't perfect: sometimes he sees a window that isn't there (or misses one that is)
             if (ev && ev.sep + gauss() * 0.6 >= 2.7 + Math.max(0, ev.depth - 10) * 0.1 + (ev.depth > 22 ? 1.5 : 0)) { throwPassToIndex(k); return; } // Deep shots only when he's clearly behind them
         }
-        if (!urgent) return;
+        if (!urgent) {
+            // Coverage holds everyone: a lane through the rush is free yards
+            if (playFrame > (READ_AT[selectedOffPlay.id] || 80) + 36 && Math.random() < 0.03 + 0.17 * qbMobility(qb) * qbMobility(qb)) {
+                const laneX = qbScrambleLane(qb);
+                if (laneX !== null) qbTakeOff(qb, laneX);
+            }
+            return;
+        }
         const bestK = findBestOpenReceiverIndex();
         const ev = evaluateReceiver(bestK);
         const rush = nearestOpp(qb, defenders, (d) => !d.eng && qbSees(qb, d));
@@ -3285,7 +3353,8 @@
         const deepOk = ev && (ev.depth < 25 || ev.sep > 4); // No forcing bombs on a broken play
         if (ev && ev.sep > 1.9 + 0.6 * qbMobility(qb) && deepOk) { throwPassToIndex(bestK); return; }
         const lane = aiRunDir(qb);
-        if (lane.dy > 0.6 && qbRunRoom(qb) > 5.5 - 2 * qbMobility(qb)) { qb.scramble = true; return; }
+        const laneX = qbScrambleLane(qb);
+        if (laneX !== null && Math.random() < 0.2 + 0.6 * qbMobility(qb)) { qbTakeOff(qb, laneX); return; }
         // Pressure but nothing open: slide, step up or roll out to buy time (mobile QBs more often)
         if (near.d < 3.6 && (qb.escapes || 0) < 3 && Math.random() < 0.55 + 0.35 * qbMobility(qb)) { startEscape(qb, near.ent); return; }
         // Can't escape: the "hot" throw into a tighter window
@@ -3933,7 +4002,7 @@
             p -= 0.08 * clamp(speedOf(c) / c.spd, 0, 1);
             if (c.elusive > 0) p -= cpuDefense() ? 0.2 : 0.3;
             if (d.eng) p = 0.14;                       // Arm tackle while engaged with a blocker
-            if (isOL(c) || c.pos === 'QB' && !hasCrossedLOS) p += 0.08;
+            if (isOL(c) || c.pos === 'QB' && !hasCrossedLOS && !c.scramble) p += 0.08;
             let help = 0;
             for (const o of defenders) if (o !== d && o.down === 0 && dist(o, c) < 1.9) help++;
             p += help * 0.12;
