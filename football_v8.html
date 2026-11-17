@@ -1804,6 +1804,7 @@
         if (e.key === ' ') doAction('primary');
         else if (code === 'KeyQ') doAction('switch');
         else if (code === 'KeyT') doAction('timeout');
+        else if (code === 'KeyF') doAction('juke');
         else if (PASS_KEYS.hasOwnProperty(code)) doAction('pass', PASS_KEYS[code]);
     });
 
@@ -3095,7 +3096,6 @@
 
     function tryJuke() {
         if (!player || gameState !== 'PLAYING' || ball.state !== 'held') return;
-        if (player === qb && !hasCrossedLOS && !isReturn) return; // QB in the pocket throws instead
         if (player.jukeCd > 0) return;
         const inp = offenseInput();
         let side = Math.sign(inp.mx);
@@ -3119,7 +3119,7 @@
         const has = inp.mx !== 0 || inp.my !== 0;
         if (has) c.auto = false;
         if (!has && c.auto) { aiCarrier(c); return; }
-        const mul = (c === qb && !hasCrossedLOS && !isReturn) ? 0.85 : 1;
+        const mul = (c === qb && !hasCrossedLOS && !isReturn) ? 0.95 : 1;
         if (has) accelTo(c, inp.mx * c.spd * mul, inp.my * c.spd * mul);
         else if (c === qb && !hasCrossedLOS && !isReturn) qbAutoDrop(c);
         else accelTo(c, 0, 0);
@@ -3154,11 +3154,14 @@
         const play = selectedOffPlay;
         const pressure = nearestOpp(q, defenders, (d) => !d.eng && qbSees(q, d));
         if (q.scramble) { aiCarrier(q); return; }
+        if (q.escape) { qbEscape(q, pressure); return; }
         qbAutoDrop(q);
         const readAt = READ_AT[play.id] || 80;
         if (playFrame < readAt || playFrame % 10 !== 0) {
             // Feeling pressure takes a beat (~0.25s), long enough for a rusher to close and finish
-            if (pressure.d < 1.4 && playFrame > 30 && Math.random() < 0.06) aiQBDecide(true);
+            if (pressure.d < 3.1 && playFrame > 26 && Math.random() < 0.06) aiQBDecide(true);
+            // Pocket presence: now and then he feels the blind-side rusher too
+            else if (playFrame > 26 && Math.random() < 0.025 + 0.02 * qbMobility(q) && nearestOpp(q, defenders, (d) => !d.eng).d < 1.8) aiQBDecide(true);
             // An unblocked blitzer coming at him in plain sight: get the ball out to the hot route
             else if (pressure.d < 3 && pressure.ent && pressure.ent.y < lineOfScrimmage + 0.5 && playFrame > 24 && Math.random() < 0.035) aiQBDecide(true);
             return;
@@ -3166,6 +3169,105 @@
         // Stand in the pocket: only bail out when a rusher is nearly on him or the play has dragged on
         aiQBDecide(pressure.d < 1.7 || playFrame > readAt + 70);
     }
+    // Open grass in front of the QB: distance to the nearest free defender in a cone downfield
+    function qbRunRoom(q) {
+        let room = 12;
+        for (const d of defenders) {
+            if (d.down > 0 || d.eng) continue;
+            const dx = d.x - q.x;
+            const dy = d.y - q.y;
+            if (dy < -1) continue;
+            if (Math.abs(Math.atan2(dx, Math.max(0.01, dy))) > 0.9) continue;
+            room = Math.min(room, Math.hypot(dx, dy));
+        }
+        return room;
+    }
+    // 0 = statue, 1 = the fastest QBs in the league
+    function qbMobility(q) { return clamp((q.spd * 60 - 7.8) / 1.8, 0, 1); }
+
+    // Pick an escape lane: step up into a clean pocket, slide, or roll out away from the heat
+    function startEscape(q, rusher) {
+        const L = lineOfScrimmage;
+        const away = rusher ? { x: q.x - rusher.x, y: q.y - rusher.y } : { x: 0, y: 1 };
+        const al = Math.hypot(away.x, away.y) || 1;
+        let best = null;
+        let bestScore = -Infinity;
+        for (let k = 0; k < 12; k++) {
+            const ang = k * Math.PI / 6;
+            const dx = Math.cos(ang);
+            const dy = Math.sin(ang);
+            const len = Math.abs(dx) > 0.6 ? 6 : 3.5;            // Rollouts cover more ground than a climb
+            const tx = clamp(q.x + dx * len, 2, W - 2);
+            const ty = clamp(q.y + dy * len, Math.max(L - 12, q.y - 2), L - 1.2); // Don't bail deep; stay behind the line to keep the throw alive
+            const mx = tx - q.x;
+            const my = ty - q.y;
+            const ml = Math.hypot(mx, my);
+            if (ml < 1.2) continue;
+            let clear = 8;
+            for (const d of defenders) {
+                if (d.down > 0) continue;
+                const rx = d.x - q.x;
+                const ry = d.y - q.y;
+                const along = (rx * mx + ry * my) / ml;
+                if (along < -1 || along > ml + 2.5) continue;
+                const perp = Math.abs(rx * my - ry * mx) / ml;
+                clear = Math.min(clear, perp + (d.eng ? 0.8 : 0) + Math.max(0, along) * 0.15);
+            }
+            const score = Math.min(clear, 4) * 1.6 + 1.5 * (mx * away.x + my * away.y) / (ml * al) + (my > 0 ? 0.5 : 0) - (my < -2 ? 0.8 : 0) + Math.abs(mx) / ml * (0.6 + 0.8 * qbMobility(q));
+            if (score > bestScore) { bestScore = score; best = { tx, ty }; }
+        }
+        if (!best) return;
+        q.escape = { tx: best.tx, ty: best.ty, t: 0 };
+        // Quick feet: the first step out of trouble is explosive, and he's slippery for a moment
+        const bx = best.tx - q.x;
+        const by = best.ty - q.y;
+        const bl = Math.hypot(bx, by) || 1;
+        const burst = q.spd * (0.45 + 0.15 * qbMobility(q));
+        const along = (q.vx * bx + q.vy * by) / bl;
+        if (along < burst) { q.vx = bx / bl * burst; q.vy = by / bl * burst; }
+        q.elusive = Math.max(q.elusive, 14);
+        q.escapes = (q.escapes || 0) + 1;
+        if (playLog) playLog.escaped = true;
+    }
+
+    // On the move: eyes downfield, throw on the run, spin out of trouble, or tuck it and go
+    function qbEscape(q, pressure) {
+        const e = q.escape;
+        e.t++;
+        seek(q, e.tx, e.ty, 1, 0.4);
+        q.face = Math.PI / 2;
+        const close = nearestOpp(q, defenders, (d) => !d.eng);
+        // A rusher about to wrap him up: spin or sidestep (the "Houdini" move)
+        if (close.ent && close.d < 1.5 && q.jukeCd <= 0 && Math.random() < 0.1 + 0.08 * qbMobility(q)) {
+            jukeMove(q, Math.sign(q.x - close.ent.x) || 1);
+            startEscape(q, close.ent);
+            return;
+        }
+        if (e.t % 8 === 0 && e.t > 10) {
+            // Wide-open grass: tuck it and go before the lane closes
+            if (qbRunRoom(q) > 7 - 2 * qbMobility(q)) { q.escape = null; q.scramble = true; return; }
+            const bestK = findBestOpenReceiverIndex();
+            const ev = evaluateReceiver(bestK);
+            if (ev && ev.sep > (pressure.d < 2 ? 1.6 : 2.3) && (ev.depth < 25 || ev.sep > 4)) { throwPassToIndex(bestK); return; }
+            const lane = aiRunDir(q);
+            const outside0 = Math.abs(q.x - ballSpotX) > 3.5;
+            if (qbRunRoom(q) > (outside0 ? 3.5 : 4.5) - 1.5 * qbMobility(q) && lane.dy > 0.6 && Math.random() < 0.45 + 0.5 * qbMobility(q)) { q.escape = null; q.scramble = true; return; }
+        }
+        const there = Math.hypot(e.tx - q.x, e.ty - q.y) < 0.8 || e.t > 50;
+        if (!there) return;
+        // Reached his spot: heat still coming means another move, else reset and read
+        if (pressure.d < 3.2 && q.escapes < 3) { startEscape(q, pressure.ent); return; }
+        const outside = Math.abs(q.x - ballSpotX) > 4;
+        if (pressure.d < 2.6 || playFrame > (READ_AT[selectedOffPlay.id] || 80) + 200) {
+            const lane = aiRunDir(q);
+            if (lane.dy > 0.6 && qbRunRoom(q) > 3 - qbMobility(q)) { q.escape = null; q.scramble = true; return; }
+            if (outside || Math.random() < 0.5) { throwAway(); return; }
+        }
+        e.tx = q.x;
+        e.ty = q.y;
+        e.t = 30;
+    }
+
     function aiQBDecide(urgent) {
         const order = PROGRESSION[selectedOffPlay.id] || [0, 1, 2, 3, 4];
         const step = Math.floor((playFrame - (READ_AT[selectedOffPlay.id] || 80)) / 16);
@@ -3179,11 +3281,15 @@
         const bestK = findBestOpenReceiverIndex();
         const ev = evaluateReceiver(bestK);
         const rush = nearestOpp(qb, defenders, (d) => !d.eng && qbSees(qb, d));
-        // Under heat he'll take a tighter window (the "hot" throw against a blitz)
-        // No forcing bombs on a broken play: deep only if he's clearly open
-        if (ev && ev.sep > (rush.d < 2.2 ? 1.0 : 1.9) && (ev.depth < 25 || ev.sep > 4)) { throwPassToIndex(bestK); return; }
+        const near = nearestOpp(qb, defenders, (d) => !d.eng);
+        const deepOk = ev && (ev.depth < 25 || ev.sep > 4); // No forcing bombs on a broken play
+        if (ev && ev.sep > 1.9 + 0.6 * qbMobility(qb) && deepOk) { throwPassToIndex(bestK); return; }
         const lane = aiRunDir(qb);
-        if (lane.clear > 6 && lane.dy > 0.7) { qb.scramble = true; return; }
+        if (lane.dy > 0.6 && qbRunRoom(qb) > 5.5 - 2 * qbMobility(qb)) { qb.scramble = true; return; }
+        // Pressure but nothing open: slide, step up or roll out to buy time (mobile QBs more often)
+        if (near.d < 3.6 && (qb.escapes || 0) < 3 && Math.random() < 0.55 + 0.35 * qbMobility(qb)) { startEscape(qb, near.ent); return; }
+        // Can't escape: the "hot" throw into a tighter window
+        if (ev && rush.d < 2.2 && ev.sep > 1.0 && deepOk) { throwPassToIndex(bestK); return; }
         // Nothing open: usually he gets rid of it, sometimes he hangs on and takes the sack
         if (rush.d < 1.6 && Math.random() < 0.7) throwAway();
         else if (playFrame > (READ_AT[selectedOffPlay.id] || 80) + 110 && Math.random() < 0.3) throwAway();
@@ -6559,8 +6665,14 @@
         toggle(passBtn, canThrow);
         toggle(passIconsBar, canThrow);
         const carrierRunning = onOffense && gameState === 'PLAYING' && ball.state === 'held' && !!player
-            && !(player === qb && !hasCrossedLOS && !isReturn) && !(gameMode === '1P' && isDefense);
+            && !(gameMode === '1P' && isDefense);
         toggle(jukeBtn, carrierRunning);
+        const inPocket = carrierRunning && player === qb && !hasCrossedLOS && !isReturn;
+        if (jukeBtn.dataset.pocket !== String(inPocket)) {
+            jukeBtn.dataset.pocket = String(inPocket);
+            jukeBtn.textContent = inPocket ? '[F] SPIN' : '[SPACE] JUKE';
+            jukeBtn.style.bottom = inPocket ? '70px' : '20px';
+        }
 
         const showChoice = inGame && gameState === 'CHOICE' && !!choiceKind && (onOffense || !online);
         toggle(overlayChoice, showChoice);
@@ -6576,9 +6688,9 @@
 
         let help;
         if (localOnDefense()) help = 'DEFENSE: TAP A DEFENDER / [Q] NEAREST TO BALL • ARROWS / DRAG TO MOVE • RUN INTO THE CARRIER TO TACKLE';
-        else if (canThrow) help = 'QB: [A/S/D/W/E] THROW TO RECEIVER • [SPACE] MOST OPEN • ARROWS / DRAG TO SCRAMBLE';
+        else if (canThrow) help = 'QB: [A/S/D/W/E] THROW TO RECEIVER • [SPACE] MOST OPEN • ARROWS / DRAG TO ESCAPE • [F] SPIN';
         else if (gameState === 'PRE_SNAP') help = 'PICK A PLAY • [SPACE] SNAP • [T] TIMEOUT';
-        else help = 'ARROWS / DRAG TO RUN • [SPACE] JUKE • NO INPUT = AUTO-RUN';
+        else help = 'ARROWS / DRAG TO RUN • [SPACE]/[F] JUKE • NO INPUT = AUTO-RUN';
         if (online && net.role) {
             const myTeam = mySide === 'HOME' ? userTeam : aiTeam;
             help = `YOU: ${myTeam.abbr} • ${help}`;
