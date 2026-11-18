@@ -3076,7 +3076,7 @@
         if (mode === 'PASS') {
             if (!isOL(blk)) frames = rand(35, 85);                          // Backs and tight ends chipping
             else if (!lineman) frames = rand(40, 115);                      // Blitzing linebackers / DBs are slippery
-            else frames = rand(rusher ? 45 : 55, rusher ? 155 : 170);       // Edge and interior rushers both win
+            else frames = rand(rusher ? 40 : 50, rusher ? 140 : 155);       // Edge and interior rushers both win
         }
         else if (mode === 'CONVOY') frames = rand(25, 75);
         else if (isOL(blk)) {
@@ -3311,9 +3311,9 @@
         const readAt = READ_AT[play.id] || 80;
         if (playFrame < readAt || playFrame % 10 !== 0) {
             // Feeling pressure takes a beat (~0.25s), long enough for a rusher to close and finish
-            if (pressure.d < 3.1 && playFrame > 26 && Math.random() < 0.06) aiQBDecide(true);
+            if (pressure.d < 2.7 && playFrame > 26 && Math.random() < 0.06) aiQBDecide(true);
             // Pocket presence: now and then he feels the blind-side rusher too
-            else if (playFrame > 26 && Math.random() < 0.025 + 0.02 * qbMobility(q) && nearestOpp(q, defenders, (d) => !d.eng).d < 1.8) aiQBDecide(true);
+            else if (playFrame > 26 && Math.random() < 0.012 + 0.015 * qbMobility(q) && nearestOpp(q, defenders, (d) => !d.eng).d < 1.8) aiQBDecide(true);
             // An unblocked blitzer coming at him in plain sight: get the ball out to the hot route
             else if (pressure.d < 3 && pressure.ent && pressure.ent.y < lineOfScrimmage + 0.5 && playFrame > 24 && Math.random() < 0.035) aiQBDecide(true);
             return;
@@ -3505,11 +3505,12 @@
         const laneX = qbScrambleLane(qb);
         if (laneX !== null && Math.random() < 0.2 + 0.6 * qbMobility(qb)) { qbTakeOff(qb, laneX); return; }
         // Pressure but nothing open: slide, step up or roll out to buy time (mobile QBs more often)
-        if (near.d < 3.6 && (qb.escapes || 0) < 3 && Math.random() < 0.55 + 0.35 * qbMobility(qb)) { startEscape(qb, near.ent); return; }
+        if (near.d < 3.6 && (qb.escapes || 0) < 3 && Math.random() < 0.42 + 0.35 * qbMobility(qb)) { startEscape(qb, near.ent); return; }
         // Can't escape: the "hot" throw into a tighter window
-        if (ev && rush.d < 2.2 && ev.sep > 1.0 && deepOk) { throwPassToIndex(bestK); return; }
+        // ...and he doesn't always see it or trust it with a rusher in his face (that's where sacks come from)
+        if (ev && rush.d < 2.2 && ev.sep > 1.4 && deepOk && Math.random() < 0.55) { throwPassToIndex(bestK); return; }
         // Nothing open: usually he gets rid of it, sometimes he hangs on and takes the sack
-        if (rush.d < 1.6 && Math.random() < 0.7) throwAway();
+        if (rush.d < 1.6 && Math.random() < 0.55) throwAway();
         else if (playFrame > (READ_AT[selectedOffPlay.id] || 80) + 110 && Math.random() < 0.3) throwAway();
     }
 
