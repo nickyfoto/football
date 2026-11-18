@@ -3193,6 +3193,16 @@
     }
 
     function aiCarrier(c) {
+        if (c === qb && !isReturn && hasCrossedLOS && c.y > lineOfScrimmage + 1.5) {
+            const hit = nearestOpp(c, defenders, (d) => !d.eng && d.y > c.y - 1);
+            if (hit.ent && hit.d < 2.1 && Math.random() < 0.3) {
+                // Feet first: the play's over where he starts the slide
+                playLog.slid = true;
+                fx('whistle');
+                endScrimmagePlay(hit.ent, false);
+                return;
+            }
+        }
         // Lean toward the called hole until past the line, but take the open crease
         let pref = null;
         if (c.path && c.pi < c.path.length && !isReturn && c.y < lineOfScrimmage + 1) {
@@ -3361,6 +3371,13 @@
         return best;
     }
     function qbTakeOff(q, laneX) {
+        // The defense sees him tuck it: the spy goes now, underneath zones and loose rushers come up fast,
+        // man defenders and the deep safety hold until he crosses the line
+        for (const d of defenders) {
+            if (d.role === 'SPY') d.scrReact = playFrame + 4;
+            else if (d.role === 'ZONE' && d.zy < lineOfScrimmage + 12) d.scrReact = playFrame + Math.round(rand(22, 36)); // ~0.4-0.6s to see it and turn
+            else d.scrReact = undefined;
+        }
         q.escape = null;
         q.scramble = true;
         q.path = [[laneX, Math.min(q.y + 2, lineOfScrimmage - 1)], [laneX, lineOfScrimmage + 3]];
@@ -4008,7 +4025,8 @@
 
         // Everyone flows to the ball once it's a run/catch/scramble (after reading it)
         if (d.role !== 'PURSUE' && d.role !== 'BALL') {
-            if ((runSeen && reacted) || (player === qb && hasCrossedLOS) || isReturn) d.role = 'PURSUE';
+            const scrambleRead = player === qb && qb && qb.scramble && d.scrReact !== undefined && playFrame >= d.scrReact;
+            if ((runSeen && reacted) || (player === qb && hasCrossedLOS) || isReturn || scrambleRead) d.role = 'PURSUE';
             else if (ballInAir && reacted) {
                 const dl = Math.hypot(d.x - ball.tx, d.y - ball.ty);
                 d.role = (dl < 8 + ball.T / 18 && ['MAN', 'ZONE', 'DEEP', 'SPY'].includes(d.role)) ? 'BALL' : 'PURSUE'; // Long throws: more time to converge
@@ -4103,7 +4121,8 @@
                 break;
             }
             case 'SPY':
-                if (qb) seek(d, qb.x, L + 4.5, 1, 1);
+                // Mirror the quarterback, a few yards past the line, ready to fire
+                if (qb) seek(d, qb.x + qb.vx * 10, L + 3.5, 1.05, 0.8);
                 break;
             case 'DEEP': {
                 let deepest = L + 12;
@@ -4987,7 +5006,7 @@
 
         lineOfScrimmage = clamp(spot, 0.5, 99.5);
         ballSpotX = clamp(c.x, HASH_L, HASH_R);
-        let big = oob ? 'OUT OF BOUNDS' : (sack ? 'SACKED!' : (gain >= 20 ? 'BIG GAIN!' : 'TACKLED'));
+        let big = oob ? 'OUT OF BOUNDS' : (sack ? 'SACKED!' : (playLog && playLog.slid ? 'QB SLIDES' : (gain >= 20 ? 'BIG GAIN!' : 'TACKLED')));
         let color = sack ? '#ef4444' : '#fbbf24';
         if (sack) sfx.roar(0.13);
         noteTendency(side, playLog && playLog.type === 'run' ? 'run' : 'pass', gain, playLog && playLog.caughtAt !== undefined ? playLog.caughtAt - (prePlay ? prePlay.los : lineOfScrimmage) : 0);
