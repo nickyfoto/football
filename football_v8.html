@@ -1452,6 +1452,7 @@
     let isTwoPointConversion = false;
     let isPAT = false;
     let playLog = null;      // What happened on this play, for the play-by-play line and stats
+    let playFlag = null;     // A penalty flag thrown on the current play (adjudicated when the play ends)
     let lastChoice = null;   // Pending 4th-down / conversion decision
     let choiceKind = '';     // 'FOURTH' | 'PAT' while the choice overlay is up
 
@@ -1473,7 +1474,7 @@
 
     // Team stats for the box score
     function freshStats() {
-        const t = () => ({ passYds: 0, rushYds: 0, comp: 0, att: 0, firstDowns: 0, tos: 0, sacks: 0, plays: 0 });
+        const t = () => ({ passYds: 0, rushYds: 0, comp: 0, att: 0, firstDowns: 0, tos: 0, sacks: 0, plays: 0, pen: 0, penYds: 0 });
         return { HOME: t(), AWAY: t(), leaders: {} };
     }
     let stats = freshStats();
@@ -2359,7 +2360,7 @@
             const t = sideTeam(side);
             const s = stats[side];
             const total = s.passYds + s.rushYds;
-            return `${t.abbr}: ${total} YDS (${s.passYds} PASS, ${s.rushYds} RUSH) • ${s.comp}/${s.att} • ${s.firstDowns} 1ST DOWNS • ${s.tos} TO • SACKED ${s.sacks}x`;
+            return `${t.abbr}: ${total} YDS (${s.passYds} PASS, ${s.rushYds} RUSH) • ${s.comp}/${s.att} • ${s.firstDowns} 1ST DOWNS • ${s.tos} TO • SACKED ${s.sacks}x • PENALTIES ${s.pen || 0}-${s.penYds || 0}`;
         };
         const leaders = Object.values(stats.leaders);
         const top = (key, label) => {
@@ -2539,6 +2540,7 @@
         for (const e of offense) if (e !== carrier) { e.role = 'CONVOY'; e.eng = null; e.convoyAt = 12; }
         for (const d of defenders) { d.role = 'PURSUE'; d.eng = null; }
         playLog = { type: 'ret', kind, carrier, start: carrier.y };
+        playFlag = (kind === 'kickoff' || kind === 'punt') && Math.random() < 0.06 ? { k: 'IBB', wait: Math.round(rand(15, 70)) } : null;
         gameState = 'PLAYING';
     }
 
@@ -2764,6 +2766,7 @@
     function setupPreSnap() {
         isDefense = (gameMode === '1P' && possession === 'AWAY');
         pointer.active = false;
+        playFlag = null;
         hasCrossedLOS = false;
         isReturn = false;
         isPAT = false;
@@ -2843,6 +2846,7 @@
                 return;
             }
         }
+        if (preSnapFoul()) return;
         clockAtSnap = gameClock;
         clockRunning = true;
         fx('hike');
@@ -2850,6 +2854,7 @@
         hasCrossedLOS = false;
         playLog = { type: selectedOffPlay.type === 'RUN' ? 'run' : 'pass', los: lineOfScrimmage, passer: qb };
         stats[possession].plays++;
+        rollLiveFouls();
         assignSnapRoles();
         gameState = 'PLAYING';
     }
@@ -3480,6 +3485,7 @@
         r.catchY = ty;
         playLog.receiver = r;
         playLog.type = 'pass';
+        playLog.thrown = true;
         stats[possession].att++;
         const QB = leader(qb, possession);
         if (QB) QB.att++;
@@ -3490,6 +3496,7 @@
         const tx = qb.x < MID ? -3 : W + 3;
         launchPass(tx, lineOfScrimmage + 6, -1);
         playLog.type = 'pass';
+        playLog.thrown = true;
         playLog.receiver = null;
         stats[possession].att++;
         const QB = leader(qb, possession);
@@ -3516,6 +3523,11 @@
         ball.vy = (ty - qb.y) / T;
         ball.vz = (1.4 - 2.0 + 0.5 * GRAVITY * T * T) / T;
         ball.target = k;
+        // A rusher arriving as the ball comes out: sometimes he drives the QB into the turf
+        if (penaltiesOn() && !playFlag) {
+            const hit = nearestOpp(qb, defenders, (x) => !x.eng);
+            if (hit.ent && hit.d < 1.1 && Math.random() < 0.05) throwFlag('RTP', hit.ent, qb.x, qb.y);
+        }
         player = null;
         gameState = 'PASS_IN_AIR';
         fx('throw');
@@ -3538,6 +3550,7 @@
         }
         const dr = r ? Math.hypot(r.x - bx, r.y - by) : Infinity;
         const reach = 1.35;
+        checkPassInterference(r, nearDef, dd, dr);
         if (r) r.targeted = false;
 
         if (inBounds && nearDef && dd <= reach && dd < dr + 0.4) {
@@ -3583,6 +3596,7 @@
     }
 
     function handleInterception(def) {
+        if (!isTwoPointConversion && playFlag && adjudicate('int')) return;
         sfx.roar(0.18);
         emit({ k: 'sfx', n: 'roar' });
         const passerName = qb ? qb.nm : 'QB';
@@ -3614,6 +3628,7 @@
     }
 
     function handleIncompletePass(msg, r, defender) {
+        if (!isTwoPointConversion && playFlag && adjudicate('inc')) return;
         gameState = 'ANIMATING';
         clockRunning = false;
         ball.state = 'loose';
@@ -3709,6 +3724,7 @@
 
     function updatePlay() {
         playFrame++;
+        checkLiveFouls();
         const play = selectedOffPlay;
         const humanOff = humanOffense();
         const inpO = humanOff ? offenseInput() : null;
@@ -4055,6 +4071,11 @@
         if (!isReturn && c.y > lineOfScrimmage && Math.random() < (help === 0 ? 0.1 : 0)) yac += downhill * rand(1, 3) * power;
         const sack = c === qb && !hasCrossedLOS && !isReturn;
         if (!sack) c.y += yac;
+        if (penaltiesOn() && !playFlag) {
+            const r = Math.random();
+            if (r < 0.006) throwFlag('FACEMASK', tackler, c.x, c.y);
+            else if (r < 0.01) throwFlag('UNR', tackler, c.x, c.y);
+        }
         c.down = 60;
         tackler.down = 50;
         tackler.x = c.x + (tackler.x - c.x) * 0.5;
@@ -4073,6 +4094,8 @@
         const c = player;
         const spot = clamp(c.y, 0.5, 99.5);
         const defenseRecovers = Math.random() < 0.55;
+        if (!isReturn && !isTwoPointConversion && playFlag && !playFlag.pending && adjudicate(defenseRecovers ? 'fumbleLost' : 'fumbleKept', spot)) return;
+        if (isReturn || defenseRecovers) playFlag = null;
         ball.state = 'loose';
         ball.vx = rand(-0.08, 0.08);
         ball.vy = rand(-0.08, 0.08);
@@ -4085,6 +4108,7 @@
                 if (isReturn) { afterPlay(() => resetDrive(spot <= 0.5 ? 20 : spot)); return; }
                 const gainSpot = spot;
                 lineOfScrimmage = clamp(gainSpot, 1, 99);
+                if (playFlag && playFlag.pending) { applyAddOn(possession); return; }
                 if (lineOfScrimmage >= firstDownLine) { down = 1; firstDownLine = Math.min(100, lineOfScrimmage + 10); }
                 else down++;
                 afterPlay(() => checkFourthDownOrNextPlay());
@@ -4113,6 +4137,239 @@
         else scoreAway += pts;
     }
 
+
+    // =====================================================================================
+    //  PENALTIES: pre-snap fouls blow the play dead; live-ball flags are adjudicated when the
+    //  play ends, and the offended team takes whichever result is better for it.
+    // =====================================================================================
+    const PEN = {
+        FALSE_START: { name: 'FALSE START', side: 'O', yds: 5, dead: true },
+        OFFSIDE:     { name: 'OFFSIDE', side: 'D', yds: 5, dead: true },
+        NZI:         { name: 'NEUTRAL ZONE INFRACTION', side: 'D', yds: 5, dead: true },
+        ENCROACH:    { name: 'ENCROACHMENT', side: 'D', yds: 5, dead: true },
+        HOLD_O:      { name: 'OFFENSIVE HOLDING', side: 'O', yds: 10 },
+        HOLD_D:      { name: 'DEFENSIVE HOLDING', side: 'D', yds: 5, auto: true },
+        HANDS_D:     { name: 'ILLEGAL USE OF HANDS', side: 'D', yds: 5, auto: true },
+        DPI:         { name: 'PASS INTERFERENCE', side: 'D', spot: true, auto: true },
+        OPI:         { name: 'OFFENSIVE PASS INTERFERENCE', side: 'O', yds: 10 },
+        RTP:         { name: 'ROUGHING THE PASSER', side: 'D', yds: 15, auto: true, addOn: true },
+        FACEMASK:    { name: 'FACE MASK', side: 'D', yds: 15, auto: true, addOn: true },
+        UNR:         { name: 'UNNECESSARY ROUGHNESS', side: 'D', yds: 15, auto: true, addOn: true },
+        IBB:         { name: 'ILLEGAL BLOCK IN THE BACK', side: 'R', yds: 10 }
+    };
+    let penRoll = { holdO: -1, holdD: -1 };
+    const DOWN_TXT = ['1ST', '2ND', '3RD', '4TH'];
+
+    function penaltiesOn() { return !isTwoPointConversion && !isReturn; }
+    function throwFlag(k, who, x, y) {
+        if (playFlag) return;
+        playFlag = { k, who, x: clamp(x, 0.5, W - 0.5), y, t0: playFrame };
+    }
+    // Yards against the offense / defense, half the distance to the goal when it's closer than that
+    function backOff(from, yds) { return from - yds < from / 2 ? from / 2 : from - yds; }
+    function moveUp(from, yds) { return Math.min(from + yds, from + (100 - from) / 2, 99); }
+    function whoText(e, side) {
+        const tm = side === 'O' ? getOffenseTeam() : getDefenseTeam();
+        return e ? `${tm.abbr} #${e.no} ${e.nm}` : tm.name;
+    }
+
+    // Rough value of a down-and-distance for the offense: field position, down, distance, 4th-down peril
+    function stateValue(s) {
+        if (s.td) return 7;
+        if (s.to) return -4;
+        if (s.safety) return -5;
+        return s.los * 0.07 - (s.down - 1) * 0.5 - Math.min(s.togo, 25) * 0.08 - (s.down >= 4 ? 1.5 : 0);
+    }
+    function afterGain(spot) {
+        if (spot >= firstDownLine) return { los: spot, down: 1, togo: Math.min(10, 100 - spot), fdl: Math.min(100, Math.floor(spot) + 10) };
+        return { los: spot, down: down + 1, togo: firstDownLine - spot, fdl: firstDownLine };
+    }
+
+    // Pre-snap: false starts and the defense jumping offside kill the play before it starts
+    function preSnapFoul() {
+        if (!penaltiesOn()) return false;
+        const r = Math.random();
+        let k = null;
+        if (r < 0.022) k = 'FALSE_START';
+        else if (r < 0.039) k = ['OFFSIDE', 'NZI', 'ENCROACH'][Math.floor(Math.random() * 3)];
+        if (!k) return false;
+        const P = PEN[k];
+        const line = P.side === 'O' ? offense.filter(isOL) : defenders.filter(d => ['LDE', 'RDE', 'DT', 'NT'].includes(d.pos));
+        const who = line[Math.floor(Math.random() * line.length)];
+        gameState = 'ANIMATING';
+        fx('whistle');
+        const old = lineOfScrimmage;
+        let sub;
+        if (P.side === 'O') {
+            lineOfScrimmage = backOff(old, P.yds);
+            sub = `${Math.round(old - lineOfScrimmage)} YARDS • REPLAY ${DOWN_TXT[Math.min(3, down - 1)]} DOWN`;
+        } else {
+            lineOfScrimmage = moveUp(old, P.yds);
+            if (lineOfScrimmage >= firstDownLine) { down = 1; firstDownLine = Math.min(100, Math.floor(lineOfScrimmage) + 10); stats[possession].firstDowns++; sub = `${Math.round(lineOfScrimmage - old)} YARDS • FIRST DOWN`; }
+            else sub = `${Math.round(lineOfScrimmage - old)} YARDS • REPLAY ${DOWN_TXT[Math.min(3, down - 1)]} DOWN`;
+        }
+        const offSide = P.side === 'O' ? possession : other(possession);
+        stats[offSide].pen++;
+        stats[offSide].penYds += Math.round(Math.abs(lineOfScrimmage - old));
+        pbp(possession, `PENALTY: ${P.name}, ${whoText(who, P.side)}, ${Math.round(Math.abs(lineOfScrimmage - old))} yards.`);
+        showBigMessage(`FLAG: ${P.name}`, '#facc15', () => setupPreSnap(), 1700, `${whoText(who, P.side)} • ${sub}`);
+        return true;
+    }
+
+    function rollLiveFouls() {
+        playFlag = null;
+        penRoll = { holdO: -1, holdD: -1 };
+        if (!penaltiesOn()) return;
+        const pass = selectedOffPlay.type === 'PASS';
+        if (Math.random() < (pass ? 0.03 : 0.024)) penRoll.holdO = Math.round(rand(16, 110));
+        if (pass && Math.random() < 0.024) penRoll.holdD = Math.round(rand(28, 95));
+    }
+
+    // Every frame of a live scrimmage play: holding happens where blocks and coverage are
+    function checkLiveFouls() {
+        if (isReturn) {
+            if (playFlag && playFlag.k === 'IBB' && playFlag.y === undefined && player && --playFlag.wait <= 0) {
+                // A block in the back behind the returner
+                const cands = offense.filter(e => e !== player && !e.down && e.y < player.y && e.y > player.y - 12);
+                const who = cands.length ? cands[Math.floor(Math.random() * cands.length)] : null;
+                if (!who || player.y < 8) { playFlag = null; return; }
+                playFlag.who = who;
+                playFlag.x = who.x;
+                playFlag.y = who.y;
+            }
+            return;
+        }
+        if (playFlag) return;
+        if (playFrame === penRoll.holdO) {
+            const ols = offense.filter(e => e.eng && (isOL(e) || e.pos === 'TE'));
+            if (ols.length) { const o = ols[Math.floor(Math.random() * ols.length)]; throwFlag('HOLD_O', o, o.x, o.y); }
+        }
+        if (playFrame === penRoll.holdD && ball.state === 'held' && player === qb) {
+            for (const d of defenders) {
+                if (d.down || d.eng || !['MAN', 'ZONE', 'DEEP'].includes(d.role)) continue;
+                const r = RECV.map(i => offense[i]).find(o => o && o.role === 'ROUTE' && dist(o, d) < 1.6);
+                if (r) { throwFlag(Math.random() < 0.75 ? 'HOLD_D' : 'HANDS_D', d, d.x, d.y); break; }
+            }
+        }
+    }
+
+    // As the ball arrives: grabbing and shoving at the catch point
+    function checkPassInterference(r, nearDef, dd, dr) {
+        if (playFlag || !penaltiesOn() || !r || !nearDef) return;
+        const depth = ball.ty - lineOfScrimmage;
+        if (depth < 2) return;
+        if (dd < 1.15 && dr <= 2.6 && Math.random() < (dd < dr ? 0.055 : 0.025)) { throwFlag('DPI', nearDef, ball.x, Math.min(ball.ty, 101)); playFlag.spotY = Math.min(ball.ty, 99); return; }
+        if (dd < 1.0 && dr < 1.3 && depth > 3 && Math.random() < 0.025) throwFlag('OPI', r, r.x, r.y);
+    }
+
+    // Pass stats from a play wiped out by an accepted penalty don't count
+    function undoPlayStats() {
+        if (!playLog || !playLog.thrown) return;
+        const side = possession;
+        stats[side].att--;
+        const QB = leader(qb, side);
+        if (QB) QB.att--;
+        if (playLog.caughtAt !== undefined && playLog.receiver) {
+            stats[side].comp--;
+            if (QB) QB.cmp--;
+            const RC = leader(playLog.receiver, side);
+            if (RC) RC.recs--;
+        }
+    }
+
+    // The play is over: the offended team accepts or declines. Returns true if the penalty takes over.
+    // kind: 'tackle' (spot), 'inc', 'td', 'int', 'fumbleLost', 'fumbleKept' (spot), 'safety'
+    function adjudicate(kind, spot) {
+        const f = playFlag;
+        if (!f || f.y === undefined) { playFlag = null; return false; }
+        const P = PEN[f.k];
+        const L = lineOfScrimmage;
+        let result;
+        if (kind === 'td') result = { td: true };
+        else if (kind === 'int' || kind === 'fumbleLost') result = { to: true };
+        else if (kind === 'safety') result = { safety: true };
+        else if (kind === 'inc') result = { los: L, down: down + 1, togo: firstDownLine - L, fdl: firstDownLine };
+        else result = afterGain(clamp(spot, 0.5, 99.5));
+
+        let acc;
+        if (P.side === 'O') {
+            const los = backOff(L, P.yds);
+            acc = { los, down, togo: firstDownLine - los, fdl: firstDownLine };
+        } else {
+            const base = P.addOn && kind === 'tackle' ? Math.max(L, clamp(spot, 0.5, 99.5)) : (P.addOn && kind === 'fumbleKept' ? Math.max(L, spot) : L);
+            const los = P.spot ? Math.max(L + 1, Math.min(99, f.spotY)) : moveUp(base, P.yds);
+            const fd = P.auto || los >= firstDownLine;
+            acc = { los, down: fd ? 1 : down, togo: fd ? Math.min(10, 100 - los) : firstDownLine - los, fdl: fd ? Math.min(100, Math.floor(los) + 10) : firstDownLine };
+        }
+        // A roughing call on a touchdown would be enforced on the kickoff: just keep the score
+        const accept = P.side === 'O' ? stateValue(acc) < stateValue(result) : stateValue(acc) > stateValue(result);
+        const offender = P.side === 'O' ? possession : other(possession);
+        playFlag = null;
+        if (!accept) {
+            pbp(possession, `PENALTY: ${P.name}, ${whoText(f.who, P.side)} — declined.`);
+            return false;
+        }
+        const yds = Math.round(Math.abs(acc.los - L));
+        stats[offender].pen++;
+        stats[offender].penYds += yds;
+        // Personal fouls on a tackle or a recovered fumble: the play stands, the 15 yards go on the end
+        if (P.addOn && (kind === 'tackle' || kind === 'fumbleKept')) {
+            playFlag = { pending: acc, P, who: f.who, yds: Math.round(Math.abs(acc.los - Math.max(L, spot))) };
+            return false;
+        }
+        undoPlayStats();
+        if (ball.state === 'air') { ball.state = 'loose'; ball.vx *= 0.4; ball.vy *= 0.4; ball.vz = 0.05; }
+        gameState = 'ANIMATING';
+        clockRunning = !((quarter === 2 && gameClock <= 120) || (quarter >= 4 && gameClock <= 300));
+        if (P.side === 'D' && timeExpired) timeExpired = false; // A half can't end on a defensive foul: untimed down
+        fx('whistle');
+        lineOfScrimmage = acc.los;
+        if (acc.down === 1 && down !== 1 || acc.fdl !== firstDownLine && acc.down === 1) stats[possession].firstDowns++;
+        down = acc.down;
+        firstDownLine = acc.fdl;
+        const wiped = kind === 'td' ? 'TOUCHDOWN WIPED OUT' : (kind === 'int' ? 'INTERCEPTION WIPED OUT' : (kind === 'fumbleLost' ? 'FUMBLE WIPED OUT' : ''));
+        const sub = P.side === 'O' ? `${yds} YARDS • REPLAY ${DOWN_TXT[Math.min(3, down - 1)]} DOWN` : (P.spot ? `SPOT FOUL • ${yds} YARDS • FIRST DOWN` : `${yds} YARDS${P.auto ? ' • AUTOMATIC FIRST DOWN' : ''}`);
+        pbp(possession, `PENALTY: ${P.name}, ${whoText(f.who, P.side)}, ${yds} yards${wiped ? ' (' + wiped.toLowerCase() + ')' : ''}.`);
+        showBigMessage(`FLAG: ${P.name}`, '#facc15', () => afterPlay(() => checkFourthDownOrNextPlay()), 2000, `${whoText(f.who, P.side)} • ${wiped ? wiped + ' • ' : ''}${sub}`);
+        return true;
+    }
+
+    // Personal foul after a completed play: 15 more yards and a fresh set of downs
+    function applyAddOn(side) {
+        const pf = playFlag;
+        playFlag = null;
+        gameState = 'ANIMATING';
+        lineOfScrimmage = pf.pending.los;
+        down = 1;
+        firstDownLine = pf.pending.fdl;
+        stats[side].firstDowns++;
+        fx('whistle');
+        pbp(side, `PENALTY: ${pf.P.name}, ${whoText(pf.who, 'D')}, ${pf.yds} yards tacked on.`);
+        showBigMessage(`FLAG: ${pf.P.name}`, '#facc15', () => afterPlay(() => checkFourthDownOrNextPlay()), 1900, `${whoText(pf.who, 'D')} • ${pf.yds} YARDS TACKED ON • FIRST DOWN`);
+    }
+
+    // Block in the back on a return: 10 yards from the spot of the foul (a return TD comes back)
+    function returnFoul(endLOS) {
+        const f = playFlag;
+        playFlag = null;
+        if (!f || f.k !== 'IBB' || f.y === undefined) return false;
+        const newLOS = Math.max(1, backOff(f.y, 10));
+        if (endLOS !== null && newLOS >= endLOS) return false;
+        const kind = playLog ? playLog.kind : 'return';
+        stats[possession].pen++;
+        stats[possession].penYds += 10;
+        isReturn = false;
+        clockRunning = false;
+        gameState = 'ANIMATING';
+        ball.state = 'held';
+        fx('whistle');
+        const who = `${getOffenseTeam().abbr} #${f.who.no} ${f.who.nm}`;
+        pbp(possession, `PENALTY: ILLEGAL BLOCK IN THE BACK, ${who}, 10 yards from the spot${endLOS === null ? ' (touchdown wiped out)' : ''}.`);
+        showBigMessage('FLAG: ILLEGAL BLOCK IN THE BACK', '#facc15', () => afterPlay(() => resetDrive(newLOS)), 2000,
+            `${who} • ${endLOS === null ? kind.toUpperCase() + ' TOUCHDOWN WIPED OUT • ' : ''}BALL AT THE ${spotText(newLOS).toUpperCase()}`);
+        return true;
+    }
+
     // A scrimmage or return play ends with the ball carrier down or out of bounds
     function endScrimmagePlay(tackler, oob) {
         gameState = 'ANIMATING';
@@ -4129,6 +4386,7 @@
             let newLOS = spot;
             let msg = 'TACKLED';
             if (spot <= 0) { newLOS = kind === 'kickoff' ? 35 : 20; msg = 'TOUCHBACK'; }
+            if (msg !== 'TOUCHBACK' && returnFoul(newLOS)) return;
             const retYds = Math.round(spot - (playLog ? playLog.start : spot));
             pbp(possession, msg === 'TOUCHBACK' ? `${c.nm} downed in the end zone, touchback.`
                 : `${c.nm} ${kind === 'int' ? 'interception' : kind} return of ${Math.max(0, retYds)} yds to the ${spotText(spot)}${by}.`);
@@ -4145,6 +4403,8 @@
             fx('fail');
             return;
         }
+
+        if (playFlag && !playFlag.pending && adjudicate(spot <= 0 ? 'safety' : 'tackle', spot)) return;
 
         // --- Safety: tackled in his own end zone ---
         if (spot <= 0) {
@@ -4191,6 +4451,7 @@
         let big = oob ? 'OUT OF BOUNDS' : (sack ? 'SACKED!' : (gain >= 20 ? 'BIG GAIN!' : 'TACKLED'));
         let color = sack ? '#ef4444' : '#fbbf24';
         if (sack) sfx.roar(0.13);
+        if (playFlag && playFlag.pending) { applyAddOn(side); return; }
         if (lineOfScrimmage >= firstDownLine) {
             down = 1;
             firstDownLine = Math.min(100, Math.floor(lineOfScrimmage) + 10);
@@ -4205,6 +4466,10 @@
     }
 
     function handleTouchdown() {
+        if (!isTwoPointConversion) {
+            if (isReturn) { if (returnFoul(null)) return; }
+            else if (playFlag && adjudicate('td')) return;
+        }
         gameState = 'ANIMATING';
         fx('touchdown');
         const c = player;
@@ -6066,11 +6331,35 @@
         ctx.restore();
     }
 
+    // A penalty marker lying on the turf where the foul happened
+    function drawPenaltyFlag() {
+        if (!playFlag || playFlag.x === undefined || !['PLAYING', 'PASS_IN_AIR', 'ANIMATING'].includes(gameState)) return;
+        const gx = getScreenX(playFlag.x);
+        const gy = getScreenY(playFlag.y);
+        const s = ppy;
+        ctx.save();
+        ctx.translate(gx, gy);
+        ctx.rotate(-0.35);
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(-s * 0.26 + 2, -s * 0.16 + 2, s * 0.52, s * 0.32);
+        ctx.fillStyle = '#facc15';
+        ctx.fillRect(-s * 0.26, -s * 0.16, s * 0.52, s * 0.32);
+        ctx.strokeStyle = '#a16207';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-s * 0.26, -s * 0.16, s * 0.52, s * 0.32);
+        ctx.beginPath();
+        ctx.arc(s * 0.2, s * 0.1, s * 0.07, 0, Math.PI * 2);
+        ctx.fillStyle = '#e5e7eb';
+        ctx.fill();
+        ctx.restore();
+    }
+
     function drawEntities() {
         if (gameState === 'MENU') return;
         drawGoalPost(110);
         drawGoalPost(-10);
         drawPlayArt();
+        drawPenaltyFlag();
 
         const all = offense.concat(defenders);
         // Far players first so nearer ones overlap them
@@ -6197,6 +6486,7 @@
             b: [BALL_STATES.indexOf(ball.state), r2(ball.x), r2(ball.y), r2(ball.z), r2(ball.vx * 100), r2(ball.vy * 100), r2(ball.tx), r2(ball.ty), ball.T, BALL_KINDS.indexOf(ball.kind), r2(ball.spin)],
             o: offense.map(packEnt),
             d: defenders.map(packEnt),
+            fl: playFlag && playFlag.x !== undefined ? [r2(playFlag.x), r2(playFlag.y)] : null,
             ch: (gameState === 'CHOICE' && choiceKind) ? { k: choiceKind, t: choiceText.t, s: choiceText.s, o: choiceOptions } : null,
             hud: hudState
         };
@@ -6248,6 +6538,7 @@
         preSnapFrames = Number(a.psf) || 0;
         playFrame = Number(a.pf) || 0;
         controlledDefIndex = Number(a.cdi) || 0;
+        playFlag = Array.isArray(a.fl) ? { x: Number(a.fl[0]) || 0, y: Number(a.fl[1]) || 0 } : null;
 
         offense = lerpList(a.o || [], b && b.o, t, unpackEnt);
         defenders = lerpList(a.d || [], b && b.d, t, unpackEnt);
