@@ -3032,8 +3032,14 @@
     function blockerAI(e, opps, mode) {
         if (e.eng) return; // Engaged blocks are handled in resolveBlocks()
         const L = lineOfScrimmage;
+        if (mode === 'CONVOY' && player && player !== e) {
+            // Downfield blocking is only for teammates near the play: level with or ahead of the ball, within ~12
+            // yards. Everyone else is out of it and eases up (no phantom escort of the whole offense)
+            const far = dist(e, player) > 12 || e.y < player.y - 4;
+            if (far) { steer(e, player.x - e.x, player.y + 4 - e.y, 0.55); return; }
+        }
         const protect = mode === 'PASS' ? qb : player;
-        const range = mode === 'PASS' ? 4.5 : (mode === 'CONVOY' ? 8 : (isOL(e) ? 4.8 : 6.5));
+        const range = mode === 'PASS' ? 4.5 : (mode === 'CONVOY' ? 5 : (isOL(e) ? 4.8 : 6.5));
         const canEngage = mode !== 'CONVOY' || playFrame >= (e.convoyAt || 0);
         let target = null;
         let best = Infinity;
@@ -3052,7 +3058,7 @@
         if (e.blockCd > 0) e.blockCd--;
         if (!target || e.blockCd > 0) {
             if (mode === 'PASS') seek(e, e.homeX !== undefined ? e.homeX : e.x, L - (e.slot !== undefined ? (Math.abs(e.slot) === 2 ? 2.0 : 1.2) : 1.5), 0.6);
-            else if (mode === 'CONVOY' && player) seek(e, player.x + (e.x < player.x ? -2.5 : 2.5), player.y + 3, 0.9);
+            else if (mode === 'CONVOY' && player) seek(e, player.x + (e.x < player.x ? -3 : 3), player.y + 4, 0.75);
             else steer(e, 0, 1, 0.5);
             return;
         }
@@ -3078,7 +3084,7 @@
             else if (!lineman) frames = rand(40, 115);                      // Blitzing linebackers / DBs are slippery
             else frames = rand(rusher ? 40 : 50, rusher ? 140 : 155);       // Edge and interior rushers both win
         }
-        else if (mode === 'CONVOY') frames = rand(25, 75);
+        else if (mode === 'CONVOY') frames = rand(12, 40);
         else if (isOL(blk)) {
             const r = Math.random();
             const stuff = lineman ? (selectedDefPlay.id === 'RUN' ? 0.1 : 0.06) : 0.02;
@@ -4172,8 +4178,10 @@
                 const push = (min - d) * 0.35;
                 const ux = dx / d;
                 const uy = dy / d;
-                const aw = a === player ? 0.3 : 1;
-                const bw = b === player ? 0.3 : 1;
+                // A defender chasing the ball slides off a body that isn't blocking him
+                const slip = (x, y) => x.role === 'PURSUE' && defenders.includes(x) && !x.eng && offense.includes(y);
+                const aw = a === player ? 0.3 : (slip(a, b) ? 0.35 : 1);
+                const bw = b === player ? 0.3 : (slip(b, a) ? 0.35 : 1);
                 a.x -= ux * push * aw;
                 a.y -= uy * push * aw;
                 b.x += ux * push * bw;
