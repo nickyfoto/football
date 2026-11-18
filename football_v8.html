@@ -5365,7 +5365,7 @@
         defenders.push(makeEnt(d.db[1], 'CB', W - 4.5, L + 1.2, dt, { role: 'HOLD', jammer: 8 }));
         defenders.push(makeEnt(d.lb[1], 'MLB', bx, L + 8, dt, { role: 'HOLD' }));
         defenders.push(makeEnt(d.db[3], 'FS', bx - 6, L + 30, dt, { role: 'HOLD' }));
-        const returner = makeEnt(d.wr3, 'PR', bx, Math.min(L + 42, 95), dt, { role: 'HOLD', returner: true });
+        const returner = makeEnt(d.wr3, 'PR', bx, Math.min(L + 45, 93), dt, { role: 'HOLD', returner: true });
         defenders.push(returner);
 
         qb = null;
@@ -5414,7 +5414,9 @@
             if (e === punter) { brake(e); continue; }
             if (e.role === 'COVER' || kicked) {
                 const tgt = kicked ? { x: ball.tx + (e.x - ball.tx) * 0.25, y: ball.ty } : { x: e.x, y: e.y + 10 };
-                seek(e, tgt.x, tgt.y, kicked ? 1 : 0.9, 4);
+                // Gunners fight through the jammers: hand-fighting at the line costs them a step or two
+                const jam = e.gunner ? defenders.find(d => d.jammer && offense[d.jammer] === e && dist(d, e) < 1.6) : null;
+                seek(e, tgt.x, tgt.y, (kicked ? 1 : 0.9) * (jam && playFrame < 120 ? 0.55 : 1), 4);
             } else seek(e, e.x, lineOfScrimmage - 1.5, 0.5);
         }
         for (const d of defenders) {
@@ -5475,11 +5477,20 @@
             }, 1600);
             return;
         }
-        const gross = clamp(46 + gauss() * 5.5, 30, 64);
-        const lx = clamp(ballSpotX + gauss() * 6, 2, W - 2);
-        const ly = punter.y + gross;
+        // NFL gross punt ~47 yards, measured from the line of scrimmage (the punter stands ~14 back)
+        const L = lineOfScrimmage;
+        let gross = clamp(47 + gauss() * 5, 32, 66);
+        let pooch = false;
+        if (L + gross > 96) {
+            // Near midfield: pooch it toward the 10 instead of booting a touchback
+            gross = clamp(90 - L + rand(-3, 5), 12, 60);
+            pooch = true;
+        }
+        const lx = clamp(ballSpotX + gauss() * (pooch ? 9 : 6), 2, W - 2);
+        const ly = L + gross;
         ball.kind = 'punt';
-        launchKick('punt', punter.x, punter.y + 0.6, lx, ly, clamp(4.3 + gauss() * 0.3, 3.6, 4.9) * 0.88);
+        // Hang time ~4.4s (a little less on a pooch)
+        launchKick('punt', punter.x, punter.y + 0.6, lx, ly, pooch ? clamp(4.0 + gauss() * 0.3, 3.4, 4.6) : clamp(4.4 + gauss() * 0.3, 3.7, 5.0));
         ball.kind = 'punt';
         ball.gross = Math.round(gross);
     }
@@ -5502,10 +5513,11 @@
             showBigMessage('TOUCHBACK', '#fbbf24', () => executeTurnover(20), 1300, 'BALL ON THE 20');
             return;
         }
-        // Fair catch when the coverage is right on top of the returner
+        // The returner decides: fair catch with a gunner in his face, otherwise bring it back
         const cover = nearestOpp(returner, offense);
-        const canField = dist(returner, { x: lx, y: ly }) < 2.5;
-        if (!canField || ly > 95 || cover.d < 3.5) {
+        const canField = dist(returner, { x: lx, y: ly }) < 3.5;
+        const fairOdds = cover.d < 1.5 ? 0.9 : cover.d < 3 ? 0.45 : cover.d < 5.5 ? 0.12 : 0.03;
+        if (!canField || ly > 92 || Math.random() < fairOdds) {
             const spot = clamp(ly + (canField ? 0 : rand(2, 7)), 1, 99);
             const how = canField ? 'fair catch' : 'downed';
             pbp(possession, `${punter.nm} punts ${ball.gross} yds, ${how} at the ${spotText(spot)}.`);
