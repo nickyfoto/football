@@ -452,9 +452,13 @@
             <div id="playcall-title" class="text-center text-amber-400 text-sm md:text-base mb-2">CHOOSE YOUR PLAY</div>
             <div id="playcall-grid" class="grid grid-cols-3 md:grid-cols-6 gap-2"></div>
         </div>
-        <div id="snap-row" class="flex gap-3 items-center">
+        <div class="flex flex-col items-center gap-2">
+            <div id="review-hint" class="hidden text-center text-xs md:text-sm" style="color:#fecaca; background: rgba(127,29,29,0.75); border: 1px solid #ef4444; border-radius: 8px; padding: 6px 12px; max-width: 40rem;"></div>
+            <div id="snap-row" class="flex flex-wrap justify-center gap-3 items-center">
+            <button id="challenge-btn" class="hidden arcade-btn" style="background: linear-gradient(180deg, #dc2626, #7f1d1d); padding: 10px 16px; font-size: 0.9rem;">RED FLAG: CHALLENGE [C]</button>
             <button id="timeout-btn" class="arcade-btn" style="background: linear-gradient(180deg, #475569, #1e293b); padding: 10px 16px; font-size: 0.9rem;">TIMEOUT [T]</button>
             <button id="snap-btn" class="arcade-btn" style="background: linear-gradient(180deg, #2563eb, #1d4ed8);">SNAP BALL [SPACE]</button>
+        </div>
         </div>
     </div>
 
@@ -468,6 +472,7 @@
         <div id="choice-title" class="text-amber-400 text-xl md:text-3xl mb-1 text-center" style="text-shadow: 3px 3px 0 #000;">4TH DOWN</div>
         <div id="choice-sub" class="text-slate-200 text-xs md:text-sm mb-4 text-center"></div>
         <div id="choice-grid" class="flex flex-wrap gap-3 justify-center"></div>
+        <div class="flex flex-col items-center gap-2 mt-4"><div id="review-hint2" class="hidden text-center text-xs md:text-sm" style="color:#fecaca; background: rgba(127,29,29,0.75); border: 1px solid #ef4444; border-radius: 8px; padding: 6px 12px; max-width: 40rem;"></div><button id="challenge-btn2" class="hidden arcade-btn" style="background: linear-gradient(180deg, #dc2626, #7f1d1d); padding: 10px 16px; font-size: 0.9rem;">RED FLAG: CHALLENGE [C]</button></div>
     </div>
 
     <!-- Season hub: schedule, standings, playoffs -->
@@ -511,6 +516,10 @@
     const choiceGrid = $('choice-grid');
     const passBtn = $('pass-btn');
     const jukeBtn = $('juke-btn');
+    const challengeBtn = $('challenge-btn');
+    const challengeBtn2 = $('challenge-btn2');
+    const reviewHint = $('review-hint');
+    const reviewHint2 = $('review-hint2');
     const passIconsBar = $('pass-icons-bar');
     const timerDisplay = $('timerDisplay');
     const qtrDisplay = $('qtrDisplay');
@@ -1453,6 +1462,9 @@
     let isPAT = false;
     let playLog = null;      // What happened on this play, for the play-by-play line and stats
     let playFlag = null;     // A penalty flag thrown on the current play (adjudicated when the play ends)
+    let lastPlay = null;     // The last play, if it had a reviewable ruling (catch, spot, goal line, fumble)
+    let prePlay = null;      // Down, distance and spot at the snap (for reversing a ruling)
+    let challenges = { HOME: { used: 0, won: 0 }, AWAY: { used: 0, won: 0 } };
     let lastChoice = null;   // Pending 4th-down / conversion decision
     let choiceKind = '';     // 'FOURTH' | 'PAT' while the choice overlay is up
 
@@ -1806,6 +1818,7 @@
         else if (code === 'KeyQ') doAction('switch');
         else if (code === 'KeyT') doAction('timeout');
         else if (code === 'KeyF') doAction('juke');
+        else if (code === 'KeyC') doAction('challenge');
         else if (PASS_KEYS.hasOwnProperty(code)) doAction('pass', PASS_KEYS[code]);
     });
 
@@ -1908,6 +1921,8 @@
 
     snapBtn.addEventListener('click', () => doAction('snap'));
     timeoutBtn.addEventListener('click', () => doAction('timeout'));
+    challengeBtn.addEventListener('click', () => doAction('challenge'));
+    challengeBtn2.addEventListener('click', () => doAction('challenge'));
     puntBtn.addEventListener('click', () => doAction('punt'));
     passBtn.addEventListener('click', () => doAction('pass', -1));
     jukeBtn.addEventListener('click', () => doAction('juke'));
@@ -1998,6 +2013,11 @@
             case 'juke':
                 if (onOffense && !aiOffense()) tryJuke();
                 break;
+            case 'challenge': {
+                const s = online ? side : (gameMode === '1P' ? 'HOME' : (lastPlay && lastPlay.by));
+                if (s && canChallenge(s)) startReview(s, () => checkFourthDownOrNextPlay());
+                break;
+            }
             case 'timeout':
                 // Online, each player can only spend their own timeouts; offline, the human's side
                 if (gameState === 'PRE_SNAP') callTimeout(online ? side : (onOffense ? possession : other(possession)));
@@ -2199,6 +2219,8 @@
         isOvertime = false;
         twoMinWarned = false;
         timeouts = { HOME: 3, AWAY: 3 };
+        challenges = { HOME: { used: 0, won: 0 }, AWAY: { used: 0, won: 0 } };
+        lastPlay = null;
         otPoss = { HOME: 0, AWAY: 0 };
         isTwoPointConversion = false;
         isReturn = false;
@@ -2266,6 +2288,7 @@
 
     // Change of possession between plays (punt downed, turnover on downs, missed FG, fumble lost...)
     function executeTurnover(newLOS, msg) {
+        lastPlay = null;
         clockRunning = false;
         if (otMaybeEnd()) return;
         possession = other(possession);
@@ -2288,6 +2311,7 @@
     // Runs once the current play is over: end of quarter / two-minute warning, then whatever comes next
     let clockAtSnap = 999;
     function afterPlay(next) {
+        if (lastPlay && !lastPlay.reviewed && autoReview(() => afterPlay(next))) return;
         if (timeExpired) { handleQuarterEnd(next); return; }
         if ((quarter === 2 || quarter === 4) && !twoMinWarned && gameClock <= 120 && clockAtSnap > 120) {
             twoMinWarned = true;
@@ -2408,6 +2432,7 @@
     //  until the ball lands; kicks into the end zone are touchbacks to the 35)
     // =====================================================================================
     function setupKickoff(kickFrom = 65) {
+        lastPlay = null;
         gameState = 'ANIMATING';
         isReturn = true;
         hasCrossedLOS = true;
@@ -2824,6 +2849,8 @@
 
     function snapBall() {
         if (gameState !== 'PRE_SNAP') return;
+        lastPlay = null;
+        updateReviewHud();
         const runoff = preSnapRunoff();
         if (runoff > 0) {
             const before = gameClock;
@@ -2847,6 +2874,7 @@
             }
         }
         if (preSnapFoul()) return;
+        prePlay = { los: lineOfScrimmage, down, fdl: firstDownLine, side: possession, x: ballSpotX };
         clockAtSnap = gameClock;
         clockRunning = true;
         fx('hike');
@@ -3551,6 +3579,7 @@
         const dr = r ? Math.hypot(r.x - bx, r.y - by) : Infinity;
         const reach = 1.35;
         checkPassInterference(r, nearDef, dd, dr);
+        if (playLog) playLog.passClose = { dr, dd, bx, by };
         if (r) r.targeted = false;
 
         if (inBounds && nearDef && dd <= reach && dd < dr + 0.4) {
@@ -3629,6 +3658,7 @@
 
     function handleIncompletePass(msg, r, defender) {
         if (!isTwoPointConversion && playFlag && adjudicate('inc')) return;
+        if (!isTwoPointConversion && r) reviewIncompletion(r, msg);
         gameState = 'ANIMATING';
         clockRunning = false;
         ball.state = 'loose';
@@ -4071,6 +4101,7 @@
         if (!isReturn && c.y > lineOfScrimmage && Math.random() < (help === 0 ? 0.1 : 0)) yac += downhill * rand(1, 3) * power;
         const sack = c === qb && !hasCrossedLOS && !isReturn;
         if (!sack) c.y += yac;
+        if (!isReturn && !isTwoPointConversion && playLog && Math.random() < 0.005) playLog.looseBall = true; // Did it come out before the knee hit?
         if (penaltiesOn() && !playFlag) {
             const r = Math.random();
             if (r < 0.006) throwFlag('FACEMASK', tackler, c.x, c.y);
@@ -4117,7 +4148,9 @@
         }
         stats[possession].tos++;
         pbp(possession, `${c.nm} FUMBLES, forced by ${tackler.nm}. Recovered by ${getDefenseTeam().name}!`);
+        const fumRv = (!isReturn && spot > 0.5) ? fumbleReview(c, spot) : null;
         showBigMessage('FUMBLE!', '#ef4444', () => {
+            if (fumRv) { runBoothReview(fumRv, () => executeTurnover(Math.max(1, 100 - spot), `${getDefenseTeam().name} RECOVERS`)); return; }
             if (spot <= 0.5) {
                 // Recovered in the end zone: defensive touchdown
                 possession = other(possession);
@@ -4334,6 +4367,273 @@
         return true;
     }
 
+
+    // =====================================================================================
+    //  INSTANT REPLAY: officials miss the odd close call. Coaches throw the red flag
+    //  (2 per game, a 3rd if both win; a lost challenge costs a timeout). Inside two minutes
+    //  of each half and in overtime only the booth can stop the game; it also checks every
+    //  scoring play and turnover.
+    // =====================================================================================
+    const lateWindow = () => isOvertime || ((quarter === 2 || quarter === 4) && gameClock <= 120);
+    const sack0 = (c) => c === qb && !hasCrossedLOS;
+    function challengesLeft(side) {
+        const c = challenges[side];
+        return Math.max(0, 2 + (c.won >= 2 ? 1 : 0) - c.used);
+    }
+    function canChallenge(side) {
+        return !!lastPlay && !lastPlay.reviewed && lastPlay.by === side && (gameState === 'PRE_SNAP' || gameState === 'CHOICE')
+            && !lateWindow() && timeouts[side] > 0 && challengesLeft(side) > 0;
+    }
+    function updateReviewHud() {
+        const open = lastPlay && !lastPlay.reviewed;
+        hudState.rv = open ? lastPlay.hint : '';
+        hudState.rvBy = open && !lateWindow() && timeouts[lastPlay.by] > 0 && challengesLeft(lastPlay.by) > 0 ? lastPlay.by : '';
+        hudState.chH = challengesLeft('HOME');
+        hudState.chA = challengesLeft('AWAY');
+    }
+    // error: the call on the field was wrong. The big-screen replay hints at it (not always truthfully).
+    function markReviewable(rv) {
+        const suggestive = rv.error ? Math.random() < 0.75 : Math.random() < 0.25;
+        rv.hint = suggestive ? rv.hintYes : 'BIG-SCREEN REPLAY: LOOKS LIKE THE RIGHT CALL';
+        lastPlay = rv;
+        updateReviewHud();
+    }
+    function startReview(by, cont) {
+        const rv = lastPlay;
+        if (!rv) { cont(); return; }
+        rv.reviewed = true;
+        updateReviewHud();
+        gameState = 'ANIMATING';
+        choiceKind = '';
+        clockRunning = false;
+        fx('whistle');
+        const head = by ? `${sideTeam(by).abbr} CHALLENGE!` : 'BOOTH REVIEW';
+        pbp(rv.side, by ? `${sideTeam(by).name} challenge the ruling (${rv.ruled.toLowerCase()}).` : `The replay official is reviewing the play (${rv.ruled.toLowerCase()}).`);
+        showBigMessage(head, by ? '#ef4444' : '#e5e7eb', () => {
+            showBigMessage('UNDER REVIEW', '#e5e7eb', () => finishReview(rv, by, cont), 2200, `RULED ${rv.ruled} • IS IT ${rv.truth}?`);
+        }, 1500, by ? 'THE RED FLAG IS OUT' : 'THE BOOTH STOPS THE GAME');
+    }
+    function finishReview(rv, by, cont) {
+        const overturn = rv.error && Math.random() < 0.92; // "Clear and obvious": a few wrong calls survive
+        if (by) {
+            challenges[by].used++;
+            if (overturn) challenges[by].won++;
+            else timeouts[by] = Math.max(0, timeouts[by] - 1);
+        }
+        updateHUD();
+        updateReviewHud();
+        if (overturn) {
+            fx('success');
+            pbp(rv.side, `After review, the ruling on the field is REVERSED: ${rv.truth.toLowerCase()}.`);
+            showBigMessage('RULING REVERSED', '#34d399', () => { if (rv.apply() !== 'done') cont(); }, 1900, `${rv.truth}${by ? ' • CHALLENGE WON' : ''}`);
+        } else {
+            fx('fail');
+            const word = rv.error ? 'STANDS' : 'CONFIRMED';
+            pbp(rv.side, `After review, the ruling on the field ${rv.error ? 'stands' : 'is confirmed'}: ${rv.ruled.toLowerCase()}.`);
+            showBigMessage(`RULING ${word}`, '#fbbf24', cont, 1800, `${rv.ruled}${by ? ` • CHALLENGE LOST • ${sideTeam(by).abbr} CHARGED A TIMEOUT` : ''}`);
+        }
+    }
+    // Inline booth reviews of scoring plays and turnovers
+    function runBoothReview(rv, cont) {
+        lastPlay = rv;
+        startReview(null, cont);
+    }
+    // Between plays: the booth (late, or a turnover) or the CPU coach can stop things before the next snap
+    function autoReview(cont) {
+        const rv = lastPlay;
+        if (rv.turnover || down > 4 || lateWindow()) {
+            if (rv.error && Math.random() < 0.9) { startReview(null, cont); return true; }
+            if (rv.turnover || down > 4) { rv.reviewed = true; updateReviewHud(); }
+            return false;
+        }
+        if (gameMode === '1P' && rv.by === 'AWAY' && timeouts.AWAY > 0 && challengesLeft('AWAY') > 0) {
+            // The CPU's coach sees the replay upstairs: usually right, occasionally a long shot
+            const leverage = rv.big ? 1.3 : 1;
+            if (Math.random() < (rv.error ? 0.62 * leverage : 0.05)) { startReview('AWAY', cont); return true; }
+            rv.reviewed = true;
+            updateReviewHud();
+        }
+        return false;
+    }
+
+    function firstDownAfter(spot, pre) {
+        if (spot >= pre.fdl) { down = 1; firstDownLine = Math.min(100, Math.floor(spot) + 10); stats[pre.side].firstDowns++; }
+        else { down = pre.down + 1; firstDownLine = pre.fdl; }
+    }
+
+    // (A) Ruled incomplete: did he secure it before he went down?
+    function reviewIncompletion(r, msg) {
+        const pc = playLog && playLog.passClose;
+        if (!pc || !prePlay || pc.dr > 1.7 || pc.by >= 99 || pc.by < 0.5) return;
+        const error = Math.random() < 0.07;
+        if (!error && Math.random() > 0.25) return;
+        const pre = { ...prePlay };
+        const passer = qb;
+        markReviewable({
+            by: pre.side, side: pre.side, error, ruled: 'INCOMPLETE PASS', truth: 'A CATCH', big: true,
+            hintYes: `BIG-SCREEN REPLAY: ${r.nm} MAY HAVE HELD ON TO THAT ONE…`,
+            apply: () => {
+                const spot = clamp(pc.by + rand(0, 1.2), 0.5, 99.4);
+                const gain = Math.round(spot - pre.los);
+                const s = stats[pre.side];
+                s.comp++;
+                s.passYds += gain;
+                const QB = leader(passer, pre.side);
+                if (QB) { QB.cmp++; QB.pass += gain; }
+                const RC = leader(r, pre.side);
+                if (RC) { RC.recs++; RC.rec += gain; }
+                lineOfScrimmage = spot;
+                ballSpotX = clamp(pc.bx, HASH_L, HASH_R);
+                firstDownAfter(spot, pre);
+                pbp(pre.side, `${passer ? passer.nm : 'QB'} pass complete to ${r.nm} for ${yardsText(gain)} (after review).`);
+                return 'next';
+            }
+        });
+    }
+
+    // (C) Spot of the ball at the line to gain: the officials can miss by a foot
+    function reviewSpot(spot) {
+        if (!prePlay || firstDownLine >= 100 || Math.abs(spot - firstDownLine) > 0.7) return spot;
+        const pre = { ...prePlay };
+        const made = spot >= firstDownLine;
+        const error = Math.random() < 0.12;
+        const ruled = error ? (made ? firstDownLine - rand(0.15, 0.45) : firstDownLine + 0.05) : spot;
+        if (!error && Math.random() > 0.3) return spot;
+        const truth = spot;
+        const ruledMade = ruled >= firstDownLine;
+        markReviewable({
+            by: ruledMade ? other(pre.side) : pre.side, side: pre.side, error, big: pre.down >= 3,
+            ruled: ruledMade ? 'FIRST DOWN' : 'SHORT OF THE LINE TO GAIN', truth: ruledMade ? 'SHORT OF THE LINE TO GAIN' : 'A FIRST DOWN',
+            hintYes: ruledMade ? 'BIG-SCREEN REPLAY: HIS KNEE MAY HAVE BEEN DOWN SHORT OF THE STICKS…' : 'BIG-SCREEN REPLAY: THE BALL MAY HAVE REACHED THE LINE TO GAIN…',
+            apply: () => {
+                if (ruledMade) stats[pre.side].firstDowns--;
+                lineOfScrimmage = truth;
+                firstDownAfter(truth, pre);
+                pbp(pre.side, `After review the ball is spotted at the ${spotText(truth)}: ${truth >= pre.fdl ? 'FIRST DOWN' : 'short of the line to gain'}.`);
+                return 'next';
+            }
+        });
+        return ruled;
+    }
+
+    // (B) A contested completion that might have hit the ground; (G) a ball that may have come out
+    function reviewAfterTackle(c, spot, gain, sack) {
+        if (!prePlay || isReturn) return;
+        const pre = { ...prePlay };
+        if (playLog.looseBall) {
+            markReviewable({
+                by: other(pre.side), side: pre.side, error: true, turnover: false, big: true,
+                ruled: 'DOWN BY CONTACT', truth: 'A FUMBLE, RECOVERED BY THE DEFENSE',
+                hintYes: `BIG-SCREEN REPLAY: THE BALL MAY HAVE COME LOOSE BEFORE ${c.nm} WAS DOWN…`,
+                apply: () => {
+                    stats[pre.side].tos++;
+                    if (spot >= pre.fdl) stats[pre.side].firstDowns--;
+                    executeTurnover(Math.max(1, 100 - clamp(spot, 1, 99)), 'FUMBLE RECOVERED AFTER REVIEW');
+                    return 'done';
+                }
+            });
+            return;
+        }
+        if (sack || !playLog || playLog.receiver !== c || playLog.caughtAt === undefined || !playLog.passClose || playLog.passClose.dd > 1.5) return;
+        const error = Math.random() < 0.05;
+        if (!error && Math.random() > 0.25) return;
+        const passer = qb;
+        markReviewable({
+            by: other(pre.side), side: pre.side, error, big: gain >= 15 || pre.down >= 3,
+            ruled: 'A CATCH', truth: 'AN INCOMPLETE PASS',
+            hintYes: 'BIG-SCREEN REPLAY: THE BALL MAY HAVE HIT THE GROUND…',
+            apply: () => {
+                const s = stats[pre.side];
+                s.comp--;
+                s.passYds -= gain;
+                if (spot >= pre.fdl) s.firstDowns--;
+                const QB = leader(passer, pre.side);
+                if (QB) { QB.cmp--; QB.pass -= gain; }
+                const RC = leader(c, pre.side);
+                if (RC) { RC.recs--; RC.rec -= gain; }
+                lineOfScrimmage = pre.los;
+                ballSpotX = pre.x;
+                down = pre.down + 1;
+                firstDownLine = pre.fdl;
+                pbp(pre.side, `After review the pass is ruled incomplete.`);
+                return 'next';
+            }
+        });
+    }
+
+    // (D) Ruled down just short of the goal line, though he may have broken the plane
+    function goalLineRuledShort() {
+        const c = player;
+        if (!c || !prePlay || c.y > 100.6 || (playLog && playLog.caughtAt >= 100) || nearestOpp(c, defenders, (d) => !d.eng).d > 1.4 || Math.random() > 0.1) return false;
+        const pre = { ...prePlay };
+        const side = possession;
+        const tackler = nearestOpp(c, defenders).ent;
+        playLog.goalLine = true;
+        c.y = 99.5;
+        endScrimmagePlay(tackler, false);
+        const caught = playLog.receiver === c;
+        markReviewable({
+            by: side, side, error: true, big: true, ruled: 'DOWN SHORT OF THE GOAL LINE', truth: 'A TOUCHDOWN',
+            hintYes: 'BIG-SCREEN REPLAY: THE BALL MAY HAVE BROKEN THE PLANE…',
+            apply: () => {
+                scoreFor(side, 6);
+                const L = leader(c, side);
+                if (L) { if (caught) L.recTD++; else L.rushTD++; }
+                if (caught) { const P = leader(qb, side); if (P) P.passTD++; }
+                if (lineOfScrimmage >= pre.fdl && pre.fdl < 100) stats[side].firstDowns--;
+                updateHUD();
+                fx('touchdown');
+                pbp(side, `After review, ${c.nm} scores: TOUCHDOWN!`);
+                showBigMessage('TOUCHDOWN!', sideTeam(side).p, () => setupConversionChoice(), 1700, 'AFTER REVIEW');
+                return 'done';
+            }
+        });
+        return true;
+    }
+
+    // (E) Every scoring play is looked at: a close one may come back
+    function touchdownReview(c, side) {
+        if (!prePlay || c.y > 100.6 || (playLog && playLog.caughtAt >= 100) || nearestOpp(c, defenders, (d) => !d.eng).d > 1.4) return null;
+        const error = Math.random() < 0.12;
+        if (!error && Math.random() > 0.35) return null;
+        const pre = { ...prePlay };
+        const caught = playLog && playLog.receiver === c;
+        return {
+            by: null, side, error, ruled: 'TOUCHDOWN', truth: 'DOWN AT THE 1',
+            apply: () => {
+                scoreFor(side, -6);
+                const L = leader(c, side);
+                if (L) { if (caught) L.recTD--; else L.rushTD--; }
+                if (caught) { const P = leader(qb, side); if (P) P.passTD--; }
+                updateHUD();
+                lineOfScrimmage = 99.5;
+                ballSpotX = clamp(c.x, HASH_L, HASH_R);
+                firstDownAfter(99.5, pre);
+                if (firstDownLine > 100) firstDownLine = 100;
+                afterPlay(() => checkFourthDownOrNextPlay());
+                return 'done';
+            }
+        };
+    }
+
+    // (F) Every turnover is looked at: was he down before the ball came out?
+    function fumbleReview(c, spot) {
+        if (!prePlay) return null;
+        const error = Math.random() < 0.1;
+        if (!error && Math.random() > 0.3) return null;
+        const pre = { ...prePlay };
+        return {
+            by: null, side: pre.side, error, ruled: 'FUMBLE, DEFENSE RECOVERS', truth: 'DOWN BY CONTACT',
+            apply: () => {
+                stats[pre.side].tos--;
+                lineOfScrimmage = clamp(spot, 1, 99);
+                firstDownAfter(lineOfScrimmage, pre);
+                afterPlay(() => checkFourthDownOrNextPlay());
+                return 'done';
+            }
+        };
+    }
+
     // Personal foul after a completed play: 15 more yards and a fresh set of downs
     function applyAddOn(side) {
         const pf = playFlag;
@@ -4421,6 +4721,7 @@
             return;
         }
 
+        if (!sack0(c) && !(playLog && playLog.goalLine)) spot = reviewSpot(spot);
         const gain = Math.round(spot - lineOfScrimmage);
         const side = possession;
         const sack = c === qb && !hasCrossedLOS && playLog && (playLog.type === 'pass' || playLog.type === 'scramble') && spot < lineOfScrimmage;
@@ -4452,6 +4753,7 @@
         let color = sack ? '#ef4444' : '#fbbf24';
         if (sack) sfx.roar(0.13);
         if (playFlag && playFlag.pending) { applyAddOn(side); return; }
+        reviewAfterTackle(c, spot, gain, sack);
         if (lineOfScrimmage >= firstDownLine) {
             down = 1;
             firstDownLine = Math.min(100, Math.floor(lineOfScrimmage) + 10);
@@ -4469,6 +4771,7 @@
         if (!isTwoPointConversion) {
             if (isReturn) { if (returnFoul(null)) return; }
             else if (playFlag && adjudicate('td')) return;
+            else if (goalLineRuledShort()) return;
         }
         gameState = 'ANIMATING';
         fx('touchdown');
@@ -4509,6 +4812,7 @@
                 pbp(side, `${c.nm} ${gain}-yd TOUCHDOWN run!`);
             }
         }
+        const tdReview = isReturn ? null : touchdownReview(c, side);
         isReturn = false;
 
         // Overtime: after both teams have had the ball, a lead ends it
@@ -4516,7 +4820,7 @@
             showBigMessage('TOUCHDOWN!', offTeam.p, () => endGame('OVERTIME WINNER!'), 1800, `${c.nm} WINS IT!`);
             return;
         }
-        showBigMessage('TOUCHDOWN!', offTeam.p, () => setupConversionChoice(), 1800, `${offTeam.name} • #${c.no} ${c.nm}`);
+        showBigMessage('TOUCHDOWN!', offTeam.p, () => (tdReview ? runBoothReview(tdReview, () => setupConversionChoice()) : setupConversionChoice()), 1800, `${offTeam.name} • #${c.no} ${c.nm}`);
     }
 
     // =====================================================================================
@@ -4558,6 +4862,7 @@
 
     function applyChoice(id) {
         if (!choiceKind || !choiceOptions.some(o => o.id === id)) return;
+        lastPlay = null;
         const kind = choiceKind;
         choiceKind = '';
         choiceOptions = [];
@@ -4566,6 +4871,7 @@
     }
 
     function runChoice(kind, id) {
+        lastPlay = null;
         if (id === 'GO') setupPreSnap();
         else if (id === 'PUNT') setupPunt();
         else if (id === 'FG') setupFieldGoal(false);
@@ -4603,6 +4909,7 @@
     }
 
     function setupConversionChoice() {
+        lastPlay = null;
         const off = possession === 'HOME' ? scoreHome : scoreAway;
         const opp = possession === 'HOME' ? scoreAway : scoreHome;
         const margin = off - opp;
@@ -7055,6 +7362,22 @@
         toggle(overlayChoice, showChoice);
         if (showChoice) renderChoice();
         else hudCache.choice = '';
+
+        const hh = net.role === 'guest' ? guestHud : hudState;
+        const reviewWindow = inGame && (gameState === 'PRE_SNAP' || gameState === 'CHOICE');
+        const chSide = online ? mySide : (gameMode === '1P' ? 'HOME' : hh.rvBy);
+        const canCh = reviewWindow && !!hh.rvBy && hh.rvBy === chSide;
+        toggle(challengeBtn, canCh && gameState === 'PRE_SNAP');
+        toggle(challengeBtn2, canCh && gameState === 'CHOICE');
+        if (canCh) {
+            const lbl = `RED FLAG: CHALLENGE [C] (${hh.rvBy === 'HOME' ? hh.chH : hh.chA} LEFT)`;
+            setText(challengeBtn, 'chb', lbl);
+            setText(challengeBtn2, 'chb2', lbl);
+        }
+        const hintOn = reviewWindow && !!hh.rv;
+        toggle(reviewHint, hintOn && gameState === 'PRE_SNAP');
+        toggle(reviewHint2, hintOn && gameState === 'CHOICE');
+        if (hintOn) { setText(reviewHint, 'rvh', hh.rv); setText(reviewHint2, 'rvh2', hh.rv); }
 
         let banner = '';
         if (online && onDefense && gameState === 'PUNT_AIMING') banner = `${getOffenseTeam().name} IS LINING UP TO PUNT…`;
