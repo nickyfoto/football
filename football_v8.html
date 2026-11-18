@@ -1111,11 +1111,12 @@
         'NFC EAST': ['DAL', 'NYG', 'PHI', 'WAS'], 'NFC NORTH': ['CHI', 'DET', 'GB', 'MIN'],
         'NFC SOUTH': ['ATL', 'CAR', 'NO', 'TB'], 'NFC WEST': ['ARI', 'LAR', 'SEA', 'SF']
     };
-    // Team strength for simulated games: 2026 form (record through ~Week 10, Nov 2026) blended 75/25 with last season
+    // Team strength for simulated games: 2026 form (record through ~Week 10, Nov 2026) blended 75/25 with last season,
+    // then raised for teams getting injured starters back (everyone healthy after the trade deadline)
     const TEAM_RATING = {
-        BUF: 88, KC: 86, DET: 86, SF: 86, DEN: 85, JAX: 84, MIN: 84, CHI: 84, CIN: 83, PIT: 82, GB: 82, SEA: 82,
-        LAR: 82, NE: 80, BAL: 80, NYG: 79, CLE: 78, HOU: 77, DAL: 77, WAS: 77, PHI: 77, CAR: 77, IND: 76, TB: 76,
-        LV: 75, ATL: 75, NO: 74, ARI: 74, LAC: 72, NYJ: 71, MIA: 71, TEN: 69
+        BUF: 88, DET: 88, KC: 87, SF: 87, BAL: 86, DEN: 85, JAX: 85, MIN: 85, GB: 85, CHI: 84, CIN: 83, LAR: 83,
+        NE: 83, PHI: 83, PIT: 82, SEA: 82, NYG: 81, CAR: 80, CLE: 79, HOU: 78, WAS: 78, DAL: 77, IND: 77, TB: 76,
+        ARI: 76, LV: 75, ATL: 75, LAC: 75, NO: 74, MIA: 74, NYJ: 71, TEN: 69
     };
     // All 32 teams, alphabetical on the team-select screen
     nfl2026Teams.sort((a, b) => a.name.localeCompare(b.name));
