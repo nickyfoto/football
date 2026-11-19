@@ -3033,13 +3033,13 @@
         if (e.eng) return; // Engaged blocks are handled in resolveBlocks()
         const L = lineOfScrimmage;
         if (mode === 'CONVOY' && player && player !== e) {
-            // Downfield blocking is only for teammates near the play: level with or ahead of the ball, within ~12
-            // yards. Everyone else is out of it and eases up (no phantom escort of the whole offense)
-            const far = dist(e, player) > 12 || e.y < player.y - 4;
-            if (far) { steer(e, player.x - e.x, player.y + 4 - e.y, 0.55); return; }
+            // Teammates hustle to get a block for the ball carrier; only the ones hopelessly out of the play
+            // (20+ yards away or well behind him) can't help
+            const far = dist(e, player) > 20 || e.y < player.y - 6;
+            if (far) { steer(e, player.x - e.x, player.y + 4 - e.y, 0.8); return; }
         }
         const protect = mode === 'PASS' ? qb : player;
-        const range = mode === 'PASS' ? 4.5 : (mode === 'CONVOY' ? 5 : (isOL(e) ? 4.8 : 6.5));
+        const range = mode === 'PASS' ? 4.5 : (mode === 'CONVOY' ? 8 : (isOL(e) ? 4.8 : 8)); // Receivers go find a defensive back to block
         const canEngage = mode !== 'CONVOY' || playFrame >= (e.convoyAt || 0);
         let target = null;
         let best = Infinity;
@@ -3050,15 +3050,26 @@
             // Pass protection picks up assigned rushers and anyone else who comes across the line (a blitz you steer yourself)
             if (mode === 'PASS' && !['RUSH', 'FILL', 'SPY'].includes(o.role) && o.y > lineOfScrimmage + 1) continue;
             // Downfield blockers have to get between the defender and the ball carrier (no blocks in the back)
-            if (mode === 'CONVOY' && player && dist(e, player) > dist(o, player) - 0.4) continue;
+            // ...or at least cut off his angle to the ball (no blocks from behind)
+            if (mode === 'CONVOY' && player && (dist(e, player) > dist(o, player) + 0.5 || o.y < e.y - 1)) continue;
             // Prefer defenders near the ball and in front of us
             const threat = d + (protect ? dist(o, protect) * 0.35 : 0);
             if (threat < best) { best = threat; target = o; }
         }
+        // Run blocking: a lineman with nobody to block up front climbs to the second level for a linebacker
+        if (!target && mode === 'RUN' && isOL(e) && playFrame > 10) {
+            for (const o of opps) {
+                if (o.down > 0 || o.eng || o.blockCd > 0 || o.y < L + 1) continue;
+                const d = dist(e, o);
+                if (d > 9) continue;
+                const threat = d + (protect ? dist(o, protect) * 0.35 : 0);
+                if (threat < best) { best = threat; target = o; }
+            }
+        }
         if (e.blockCd > 0) e.blockCd--;
         if (!target || e.blockCd > 0) {
             if (mode === 'PASS') seek(e, e.homeX !== undefined ? e.homeX : e.x, L - (e.slot !== undefined ? (Math.abs(e.slot) === 2 ? 2.0 : 1.2) : 1.5), 0.6);
-            else if (mode === 'CONVOY' && player) seek(e, player.x + (e.x < player.x ? -3 : 3), player.y + 4, 0.75);
+            else if (mode === 'CONVOY' && player) seek(e, player.x + (e.x < player.x ? -2.5 : 2.5), player.y + 4, 1);
             else steer(e, 0, 1, 0.5);
             return;
         }
@@ -3068,7 +3079,7 @@
         const gd = Math.hypot(gx, gy) || 1;
         seek(e, target.x + gx / gd * 0.9, target.y + gy / gd * 0.9, 1, 0.6);
         // Pass protection: a set lineman catches any rusher who comes within reach in front of him
-        const reach = mode === 'PASS' && isOL(e) ? 1.7 : 1.2;
+        const reach = mode === 'PASS' && isOL(e) ? 1.7 : (mode === 'CONVOY' ? 1.45 : 1.2);
         const inFront = mode !== 'PASS' || target.y > e.y - 0.6;
         if (canEngage && inFront && dist(e, target) < reach) engage(e, target, mode);
     }
@@ -3084,7 +3095,7 @@
             else if (!lineman) frames = rand(40, 115);                      // Blitzing linebackers / DBs are slippery
             else frames = rand(rusher ? 40 : 50, rusher ? 140 : 155);       // Edge and interior rushers both win
         }
-        else if (mode === 'CONVOY') frames = rand(12, 40);
+        else if (mode === 'CONVOY') frames = rand(30, 80);
         else if (isOL(blk)) {
             const r = Math.random();
             const stuff = lineman ? (selectedDefPlay.id === 'RUN' ? 0.1 : 0.06) : 0.02;
@@ -3735,7 +3746,7 @@
         if (QB) QB.cmp++;
         const RC = leader(r, possession);
         if (RC) RC.recs++;
-        for (const e of offense) if (e !== r && !e.eng) { e.role = isOL(e) ? 'OL_RUN' : 'CONVOY'; e.convoyAt = playFrame + 24; }
+        for (const e of offense) if (e !== r && !e.eng) { e.role = isOL(e) ? 'OL_RUN' : 'CONVOY'; e.convoyAt = playFrame + 14; }
         for (const d of defenders) if (d.role !== 'RUSH' || !d.eng) d.role = 'PURSUE';
         gameState = 'PLAYING';
         if (r.y >= 100) handleTouchdown();
