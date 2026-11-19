@@ -362,6 +362,7 @@
                     </div>
                 </div>
                 <div class="tool-btns">
+                    <button id="speed-btn" class="hidden">SPEED 1X</button>
                     <button id="menu-btn">MENU</button>
                     <button id="cam-btn">3D CAM: ON</button>
                     <button id="fs-btn">FULLSCREEN</button>
@@ -410,6 +411,7 @@
         <div id="quick-modes" class="flex flex-wrap justify-center gap-2 mb-3">
             <button id="mode-1p-btn" class="px-4 py-2 rounded-lg border-2 border-amber-400 bg-blue-600 text-white text-xs md:text-sm">VS CPU</button>
             <button id="mode-2p-btn" class="px-4 py-2 rounded-lg border-2 border-slate-600 bg-slate-800 text-slate-300 text-xs md:text-sm">2 PLAYERS (COACH MODE)</button>
+            <button id="mode-cpu-btn" class="px-4 py-2 rounded-lg border-2 border-slate-600 bg-slate-800 text-slate-300 text-xs md:text-sm">CPU VS CPU (WATCH)</button>
             <button id="mode-mp-btn" class="px-4 py-2 rounded-lg border-2 border-slate-600 bg-slate-800 text-slate-300 text-xs md:text-sm">ONLINE WITH A FRIEND</button>
         </div>
 
@@ -517,6 +519,7 @@
     const choiceGrid = $('choice-grid');
     const passBtn = $('pass-btn');
     const jukeBtn = $('juke-btn');
+    const speedBtn = $('speed-btn');
     const challengeBtn = $('challenge-btn');
     const challengeBtn2 = $('challenge-btn2');
     const reviewHint = $('review-hint');
@@ -1399,7 +1402,8 @@
     let cameraX = MID;
     let use3DCam = true;
 
-    let gameMode = '1P'; // '1P' (User vs CPU), '2P' (User controls both offenses) or 'ONLINE' (two browsers)
+    let gameMode = '1P'; // '1P' (User vs CPU), '2P' (User controls both offenses), 'ONLINE' (two browsers) or 'CPU' (watch CPU vs CPU)
+    let simSpeed = 1;    // CPU vs CPU: watch at 1x / 2x / 4x
     let roomCode = '';
     let quarterMinutes = 15;
     let cpuSkill = 1;     // 0 rookie, 1 pro, 2 all-pro
@@ -1712,7 +1716,28 @@
     initTeamSelection();
 
     let seasonMenu = false; // Season mode picked on the menu
+    let watchHome = -1; // CPU vs CPU: the home team picked first
+    function cycleSpeed() {
+        simSpeed = simSpeed === 1 ? 2 : (simSpeed === 2 ? 4 : 1);
+    }
     function onTeamCardClick(idx) {
+        if (!seasonMenu && gameMode === 'CPU') {
+            if (watchHome < 0) {
+                watchHome = idx;
+                teamCards.forEach((c, i) => c.classList.toggle('picked-me', i === idx));
+                $('team-pick-label').textContent = `HOME: ${nfl2026Teams[idx].name} • NOW PICK THE AWAY TEAM:`;
+                return;
+            }
+            if (idx === watchHome) return;
+            const home = nfl2026Teams[watchHome];
+            watchHome = -1;
+            teamCards.forEach((c) => c.classList.remove('picked-me'));
+            $('team-pick-label').textContent = 'PICK THE HOME TEAM, THEN THE AWAY TEAM:';
+            seasonGame = null;
+            simSpeed = 1;
+            startGame(home, { opponent: nfl2026Teams[idx], userHome: true });
+            return;
+        }
         if (seasonMenu) {
             const saved = season || loadSeason();
             if (saved && saved.phase !== 'done' && !window.confirm(`Start a new season with ${nfl2026Teams[idx].name}? Your saved season will be replaced.`)) return;
@@ -1765,11 +1790,14 @@
         if (!seasonMenu) lastQuickMode = mode;
         mode1PBtn.className = mode === '1P' ? MODE_BTN_ON : MODE_BTN_OFF;
         mode2PBtn.className = mode === '2P' ? MODE_BTN_ON : MODE_BTN_OFF;
+        $('mode-cpu-btn').className = mode === 'CPU' ? MODE_BTN_ON : MODE_BTN_OFF;
+        watchHome = -1;
+        teamCards.forEach((c) => c && c.classList.remove('picked-me'));
         modeMPBtn.className = mode === 'ONLINE' ? MODE_BTN_ON : MODE_BTN_OFF;
         $('mode-season-btn').classList.toggle('on', seasonMenu);
         $('mode-quick-btn').classList.toggle('on', !seasonMenu);
         $('quick-modes').classList.toggle('hidden', seasonMenu);
-        $('team-pick-label').textContent = seasonMenu ? 'PICK YOUR TEAM FOR A NEW SEASON:' : (mode === 'ONLINE' ? 'PICK YOUR TEAM:' : 'SELECT YOUR TEAM TO KICK OFF:');
+        $('team-pick-label').textContent = seasonMenu ? 'PICK YOUR TEAM FOR A NEW SEASON:' : (mode === 'ONLINE' ? 'PICK YOUR TEAM:' : (mode === 'CPU' ? 'PICK THE HOME TEAM, THEN THE AWAY TEAM:' : 'SELECT YOUR TEAM TO KICK OFF:'));
         renderSeasonBox();
         renderLobby();
     }
@@ -1787,6 +1815,8 @@
     });
     mode1PBtn.addEventListener('click', () => selectMode('1P'));
     mode2PBtn.addEventListener('click', () => selectMode('2P'));
+    $('mode-cpu-btn').addEventListener('click', () => selectMode('CPU'));
+    speedBtn.addEventListener('click', () => doAction('speed'));
     modeMPBtn.addEventListener('click', () => selectMode('ONLINE'));
 
     $('gen-code-btn').addEventListener('click', createRoom);
@@ -1843,6 +1873,7 @@
         else if (code === 'KeyT') doAction('timeout');
         else if (code === 'KeyF') doAction('juke');
         else if (code === 'KeyC') doAction('challenge');
+        else if (code === 'KeyX') doAction('speed');
         else if (PASS_KEYS.hasOwnProperty(code)) doAction('pass', PASS_KEYS[code]);
     });
 
@@ -1856,10 +1887,11 @@
 
     // Whether the player at this screen is on defense (online: whoever doesn't have the ball)
     function localOnDefense() {
+        if (gameMode === 'CPU') return false;
         return gameMode === 'ONLINE' ? possession !== mySide : isDefense;
     }
     function localOnOffense() {
-        return !localOnDefense();
+        return gameMode !== 'CPU' && !localOnDefense();
     }
     function myControlledEntity() {
         return localOnDefense() ? defenders[controlledDefIndex] : (player || qb);
@@ -1992,9 +2024,9 @@
         if (gameMode !== 'ONLINE') return localInput;
         return possession === mySide ? remoteInput : localInput;
     }
-    const aiOffense = () => isDefense;                         // 1P: the CPU runs the offense while the user defends
-    const humanDefense = () => isDefense || gameMode === 'ONLINE';
-    const humanOffense = () => !isDefense;
+    const aiOffense = () => isDefense || gameMode === 'CPU';   // 1P: the CPU runs the offense while the user defends
+    const humanDefense = () => gameMode !== 'CPU' && (isDefense || gameMode === 'ONLINE');
+    const humanOffense = () => gameMode !== 'CPU' && !isDefense;
     const snapAllowed = () => gameMode !== 'ONLINE' || defCalled || preSnapFrames >= DEFENSE_CALL_FRAMES;
     const skillMul = () => (gameMode === '1P' ? [0.98, 1.04, 1.09][cpuSkill] : 1.0);
     const cpuDefense = () => gameMode === '1P' && !isDefense; // The CPU is defending against the user
@@ -2006,6 +2038,7 @@
     }
 
     function handleAction(side, a, arg) {
+        if (gameMode === 'CPU') { if (a === 'speed') cycleSpeed(); return; } // Watching: the only control is the speed
         const online = gameMode === 'ONLINE';
         const onOffense = online ? side === possession : !isDefense;
         const onDefense = online ? side !== possession : isDefense;
@@ -2880,6 +2913,9 @@
         if (gameMode === '1P') {
             if (isDefense) selectedOffPlay = aiPickOffPlay();
             else selectedDefPlay = aiPickDefPlay();
+        } else if (gameMode === 'CPU') {
+            selectedOffPlay = aiPickOffPlay();
+            selectedDefPlay = aiPickDefPlay();
         }
         setupFormationEntities();
         gameState = 'PRE_SNAP';
@@ -2904,10 +2940,15 @@
 
     // The CPU saves clock when trailing late
     function aiMaybeTimeout() {
-        if (gameMode !== '1P' || !clockRunning) return;
+        if ((gameMode !== '1P' && gameMode !== 'CPU') || !clockRunning) return;
         const late = (quarter === 2 && gameClock <= 110) || (quarter >= 4 && gameClock <= 150);
         if (!late) return;
-        if (scoreAway < scoreHome || (quarter === 2 && possession === 'AWAY')) callTimeout('AWAY');
+        const sides = gameMode === 'CPU' ? ['HOME', 'AWAY'] : ['AWAY'];
+        for (const s of sides) {
+            const me = s === 'HOME' ? scoreHome : scoreAway;
+            const opp = s === 'HOME' ? scoreAway : scoreHome;
+            if (me < opp || (quarter === 2 && possession === s)) { callTimeout(s); return; }
+        }
     }
 
     // Accelerated clock: when the clock is running between plays, it runs off at the snap
@@ -3819,6 +3860,7 @@
             case 'PRE_SNAP':
                 preSnapFrames++;
                 if (preSnapFrames % 60 === 0) playClock--;
+                if (gameMode === 'CPU' && preSnapFrames > 75) { snapBall(); return; } // Both sidelines are the CPU
                 if (playClock <= 0) handlePlayClockExpired();
                 camFocusY = lineOfScrimmage - 3; // Formation mid-screen, below the play-call panel
                 return;
@@ -4723,10 +4765,11 @@
             if (rv.turnover || down > 4) { rv.reviewed = true; updateReviewHud(); }
             return false;
         }
-        if (gameMode === '1P' && rv.by === 'AWAY' && timeouts.AWAY > 0 && challengesLeft('AWAY') > 0) {
+        const cpuCoach = (gameMode === '1P' && rv.by === 'AWAY') || (gameMode === 'CPU' && !!rv.by);
+        if (cpuCoach && timeouts[rv.by] > 0 && challengesLeft(rv.by) > 0) {
             // The CPU's coach sees the replay upstairs: usually right, occasionally a long shot
             const leverage = rv.big ? 1.3 : 1;
-            if (Math.random() < (rv.error ? 0.62 * leverage : 0.05)) { startReview('AWAY', cont); return true; }
+            if (Math.random() < (rv.error ? 0.62 * leverage : 0.05)) { startReview(rv.by, cont); return true; }
             rv.reviewed = true;
             updateReviewHud();
         }
@@ -5640,7 +5683,7 @@
         displayBigMessage(text, color, delay, subtitle);
         emit({ k: 'msg', text, color, delay, subtitle });
         const gen = gameGen;
-        setTimeout(() => { if (callback && gen === gameGen) callback(); }, delay);
+        setTimeout(() => { if (callback && gen === gameGen) callback(); }, gameMode === 'CPU' ? delay / simSpeed : delay);
     }
 
     function displayBigMessage(text, color, delay, subtitle) {
@@ -7031,7 +7074,7 @@
     function pumpSim() {
         if (net.role === 'guest') return;
         const now = performance.now();
-        simAcc += Math.min(1000, now - simLast);
+        simAcc += Math.min(1000, (now - simLast) * (gameMode === 'CPU' ? simSpeed : 1));
         simLast = now;
         while (simAcc >= STEP_MS) {
             simStep();
@@ -7629,7 +7672,9 @@
         const onOffense = inGame && localOnOffense();
         const onDefense = inGame && localOnDefense();
 
-        toggle(overlaySnap, inGame && gameState === 'PRE_SNAP');
+        toggle(overlaySnap, inGame && gameState === 'PRE_SNAP' && gameMode !== 'CPU');
+        toggle(speedBtn, inGame && gameMode === 'CPU');
+        setText(speedBtn, 'spd', `SPEED ${simSpeed}X [X]`);
         toggle(snapBtn, !online || onOffense);
         const ready = snapAllowed();
         snapBtn.disabled = !ready;
@@ -7690,7 +7735,8 @@
         toggle(statusBanner, banner !== '');
 
         let help;
-        if (localOnDefense()) help = 'DEFENSE: TAP A DEFENDER / [Q] NEAREST TO BALL • ARROWS / DRAG TO MOVE • RUN INTO THE CARRIER TO TACKLE • [F] DIVE';
+        if (gameMode === 'CPU') help = `CPU VS CPU • ${userTeam.abbr} vs ${aiTeam.abbr} • [X] SPEED ${simSpeed}X • MENU TO LEAVE`;
+        else if (localOnDefense()) help = 'DEFENSE: TAP A DEFENDER / [Q] NEAREST TO BALL • ARROWS / DRAG TO MOVE • RUN INTO THE CARRIER TO TACKLE • [F] DIVE';
         else if (canThrow) help = 'QB: [A/S/D/W/E] THROW TO RECEIVER • [SPACE] MOST OPEN • ARROWS / DRAG TO ESCAPE • [F] SPIN';
         else if (gameState === 'PRE_SNAP') help = 'PICK A PLAY • [SPACE] SNAP • [T] TIMEOUT';
         else help = 'ARROWS / DRAG TO RUN • [SPACE]/[F] JUKE • NO INPUT = AUTO-RUN';
