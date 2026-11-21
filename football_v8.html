@@ -288,6 +288,8 @@
         .season-btn:hover { border-color: #facc15; }
         .season-section { background: rgba(15,23,42,0.9); border: 1px solid #334155; border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; }
         .season-section-title { color: #94a3b8; font-size: 0.7rem; letter-spacing: 2px; margin-bottom: 6px; }
+        .inj-row { color: #fdba74; font-size: 0.75rem; padding: 2px 0; }
+        .inj-row.mine { color: #fb923c; font-weight: bold; }
         .score-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px; }
         .score-cell { font-family: 'Oswald', sans-serif; color: #e2e8f0; font-size: 0.8rem; background: #0b1220; border-radius: 4px; padding: 2px 6px; display: inline-block; margin: 1px 3px 1px 0; }
         .score-cell.mine { color: #000; background: #facc15; }
@@ -296,7 +298,7 @@
         .conf-title { color: #fff; text-align: center; letter-spacing: 2px; margin-bottom: 4px; }
         .div-block { margin-bottom: 6px; }
         .div-title { color: #facc15; font-size: 0.65rem; letter-spacing: 1px; }
-        .std-row { display: grid; grid-template-columns: 44px 1fr 46px 40px; align-items: center; gap: 6px; font-family: 'Oswald', sans-serif; color: #e2e8f0; font-size: 0.82rem; padding: 1px 4px; border-radius: 4px; }
+        .std-row { display: grid; grid-template-columns: 70px 1fr 46px 40px; align-items: center; gap: 6px; font-family: 'Oswald', sans-serif; color: #e2e8f0; font-size: 0.82rem; padding: 1px 4px; border-radius: 4px; }
         .std-row.mine { background: rgba(250,204,21,0.18); }
         .std-rec, .std-diff { text-align: right; }
         .std-diff { color: #94a3b8; }
@@ -2475,7 +2477,7 @@
             return best ? `${label}: ${best.nm} (${best.abbr}) ${best[key]}` : '';
         };
         const lead = [top('pass', 'PASSING'), top('rush', 'RUSHING'), top('rec', 'RECEIVING')].filter(Boolean).join(' • ');
-        const hurt = Object.values(injuries).map(n => `${sideTeam(n.side).abbr} ${n.nm} (${n.pos}, ${n.kind}${n.out ? ', out' : (snapCount >= n.back ? ', returned' : ', did not return')})`);
+        const hurt = Object.values(injuries).filter(n => !n.pre).map(n => `${sideTeam(n.side).abbr} ${n.nm} (${n.pos}, ${n.kind}${n.out ? ', out' : (snapCount >= n.back ? ', returned' : ', did not return')})`);
         return `FINAL: ${userTeam.name} ${scoreHome} - ${aiTeam.name} ${scoreAway}\n${line('HOME')}\n${line('AWAY')}${lead ? '\n' + lead : ''}${hurt.length ? '\nINJURIES: ' + hurt.join(' • ') : ''}`;
     }
 
@@ -4707,7 +4709,7 @@
     }
     function rollInjuries() {
         for (const e of onField) {
-            if (!e.pk || isHurt(e.pk) || injuries[e.pk]) continue; // One injury per player per game
+            if (!e.pk || isHurt(e.pk) || injuries[e.pk]) continue; // One injury per player per game (season injuries are already out)
             let p = 0.0007;
             if (e.pk === lastCarrierPk) p += 0.004;
             if (e.pk === lastTacklerPk) p += 0.0015;
@@ -5788,7 +5790,7 @@
     function loadSeason() {
         try {
             const s = JSON.parse(localStorage.getItem(SEASON_KEY) || 'null');
-            if (s && s.team && Array.isArray(s.weeks) && teamByAbbr(s.team)) return s;
+            if (s && s.team && Array.isArray(s.weeks) && teamByAbbr(s.team)) { if (!s.injuries) s.injuries = {}; return s; }
         } catch (e) {}
         return null;
     }
@@ -5856,9 +5858,94 @@
     }
 
     function startNewSeason(team) {
-        season = { team: team.abbr, week: 0, weeks: buildSchedule(), phase: 'regular', playoffs: null, champion: null, lastResults: [], players: {} };
+        season = { team: team.abbr, week: 0, weeks: buildSchedule(), phase: 'regular', playoffs: null, champion: null, lastResults: [], players: {}, injuries: {} };
         saveSeason();
         showSeasonHub();
+    }
+
+    // --- Injuries that carry over: weeks out by injury, healthy rosters, and what a team is missing ---
+    const IR_SLOTS = [['qb'], ['rb'], ['wr1'], ['wr2'], ['wr3'], ['te'], ['ol', 0], ['ol', 1], ['ol', 2], ['ol', 3], ['ol', 4],
+        ['dl', 0], ['dl', 1], ['dl', 2], ['dl', 3], ['lb', 0], ['lb', 1], ['lb', 2], ['db', 0], ['db', 1], ['db', 2], ['db', 3]];
+    const IR_GET = (o, key, i) => (o ? (i === undefined ? o[key] : (o[key] || [])[i]) : undefined);
+    const injKey = (abbr, p) => `${abbr}:${p.no}:${p.nm}`;
+    function seasonHurt(abbr, p) {
+        return !!(season && season.injuries && p && season.injuries[injKey(abbr, p)]);
+    }
+    // How long he's out: most injuries cost a week or few; a few knees end the season
+    function weeksOutFor(kind) {
+        const r = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+        if (kind === 'knee' && Math.random() < 0.15) return 99;
+        return ({ concussion: r(1, 2), ankle: r(1, 4), knee: r(2, 8), hamstring: r(1, 4), shoulder: r(1, 4), back: r(1, 3), hand: r(1, 2), groin: r(1, 3) })[kind] || r(1, 3);
+    }
+    function addSeasonInjury(abbr, p, kind, weeks) {
+        if (!season || !p || weeks <= 0) return;
+        season.injuries[injKey(abbr, p)] = { abbr, no: p.no, nm: p.nm, pos: p.pos, kind, weeks, seasonEnding: weeks >= 99 };
+    }
+    // The lineup a team actually has this week: injured starters replaced by the next healthy man
+    function healthyRoster(abbr) {
+        const team = teamByAbbr(abbr);
+        const r = JSON.parse(JSON.stringify(team.roster));
+        for (const [key, i] of IR_SLOTS) {
+            const st = IR_GET(team.roster, key, i);
+            if (!seasonHurt(abbr, st)) continue;
+            const sub = (IR_GET(team.depth, key, i) || []).find(b => !seasonHurt(abbr, b));
+            if (!sub) continue;
+            const v = { ...sub, pos: st.pos };
+            if (i === undefined) r[key] = v; else r[key][i] = v;
+        }
+        return r;
+    }
+    // Rating points a team loses to injuries (a QB matters most; stars more than role players)
+    function injuryPenalty(abbr) {
+        const team = teamByAbbr(abbr);
+        let pen = 0;
+        for (const [key, i] of IR_SLOTS) {
+            const st = IR_GET(team.roster, key, i);
+            if (!seasonHurt(abbr, st)) continue;
+            const sub = (IR_GET(team.depth, key, i) || []).find(b => !seasonHurt(abbr, b));
+            const gap = Math.max(0, (st.r || 72) - ((sub && sub.r) || 60));
+            pen += gap * (key === 'qb' ? 0.3 : 0.06);
+        }
+        return Math.min(pen, 12);
+    }
+    // Simulated games produce injuries too (~0.5 multi-week injuries per team per game)
+    function simInjuries(abbr) {
+        const team = teamByAbbr(abbr);
+        const n = Math.random() < 0.4 ? 1 : (Math.random() < 0.12 ? 2 : 0);
+        const kinds = ['ankle', 'knee', 'hamstring', 'shoulder', 'concussion', 'back', 'hand', 'groin'];
+        for (let k = 0; k < n; k++) {
+            const [key, i] = IR_SLOTS[Math.floor(Math.random() * IR_SLOTS.length)];
+            const p = IR_GET(team.roster, key, i);
+            if (!p || seasonHurt(abbr, p) || !(IR_GET(team.depth, key, i) || []).length) continue;
+            const kind = kinds[Math.floor(Math.random() * kinds.length)];
+            addSeasonInjury(abbr, p, kind, weeksOutFor(kind));
+        }
+    }
+    // A week goes by: everyone gets a week closer to returning
+    function healInjuries() {
+        for (const k of Object.keys(season.injuries || {})) {
+            const n = season.injuries[k];
+            if (n.seasonEnding || n.weeks >= 99) continue; // Done for the year
+            if (--n.weeks <= 0) delete season.injuries[k];
+        }
+    }
+    // After a game the user played: the in-game injuries decide who misses time
+    function carryOverGameInjuries() {
+        for (const n of Object.values(injuries)) {
+            if (n.pre) continue;
+            const abbr = sideTeam(n.side).abbr;
+            const p = { no: n.no, nm: n.nm, pos: n.pos };
+            if (n.out) addSeasonInjury(abbr, p, n.kind, weeksOutFor(n.kind));
+            else if (snapCount < n.back && Math.random() < 0.35) addSeasonInjury(abbr, p, n.kind, 1); // Didn't return: may sit a week
+        }
+    }
+    // Before kickoff: players still hurt from earlier weeks are inactive
+    function applySeasonInjuriesToGame() {
+        if (!season || !season.injuries) return;
+        for (const n of Object.values(season.injuries)) {
+            if (n.abbr !== userTeam.abbr && n.abbr !== aiTeam.abbr) continue;
+            injuries[`${n.abbr}:${n.no}:${n.nm}`] = { kind: n.kind, back: Infinity, out: true, pre: true, side: n.abbr === userTeam.abbr ? 'HOME' : 'AWAY', no: n.no, nm: n.nm, pos: n.pos };
+        }
     }
 
     // --- Simulated games ---
@@ -5869,8 +5956,8 @@
         return best;
     }
     function simGame(g, playoff, neutral) {
-        const rh = TEAM_RATING[g.h] || 78;
-        const ra = TEAM_RATING[g.a] || 78;
+        const rh = (TEAM_RATING[g.h] || 78) - injuryPenalty(g.h);
+        const ra = (TEAM_RATING[g.a] || 78) - injuryPenalty(g.a);
         const edge = neutral ? 0 : 1.3;
         g.hs = snapScore(clamp(22 + (rh - ra) * 0.45 + edge + gauss() * 9.5, 0, 50));
         g.as = snapScore(clamp(22 + (ra - rh) * 0.45 - edge + gauss() * 9.5, 0, 50));
@@ -5974,9 +6061,12 @@
     function completeWeek() {
         const playoff = season.phase === 'playoffs';
         const games = currentGames();
+        if (!season.injuries) season.injuries = {};
+        healInjuries(); // A week passes for everyone already hurt
         for (const g of games) {
             if (g.hs === null) simGame(g, playoff, !!g.neutral);
             if (!g.played && !g.boxed) recordSimStats(g);
+            if (!g.played && !g.boxed) { simInjuries(g.h); simInjuries(g.a); }
             g.boxed = true;
         }
         season.lastResults = games.map(g => ({ h: g.h, a: g.a, hs: g.hs, as: g.as }));
@@ -6018,6 +6108,7 @@
             userHome,
             playoff: season.phase === 'playoffs'
         });
+        applySeasonInjuriesToGame();
     }
 
     // Called from endGame for a season game; the user's team is always the HOME slot in the engine
@@ -6029,7 +6120,9 @@
         else { g.as = scoreHome; g.hs = scoreAway; }
         g.played = true;
         recordPlayedStats();
-        completeWeek();
+        completeWeek();          // Heals last week's injuries first...
+        carryOverGameInjuries(); // ...then this game's injuries start counting
+        saveSeason();
         hud.style.display = 'none';
         showSeasonHub();
     }
@@ -6132,6 +6225,21 @@
             next.appendChild(el('div', 'season-next-label', won ? `🏆 ${me.name} WIN THE SUPER BOWL!` : `${teamByAbbr(season.champion).name} WIN THE SUPER BOWL`));
         }
         seasonContent.appendChild(next);
+
+        // Injury report: who's out for my team and this week's opponent
+        if (season.phase !== 'done' && season.injuries) {
+            const opp = g ? (g.h === season.team ? g.a : g.h) : null;
+            const list = Object.values(season.injuries).filter(n => n.abbr === season.team || n.abbr === opp)
+                .sort((a, b) => (a.abbr === season.team ? 0 : 1) - (b.abbr === season.team ? 0 : 1) || b.weeks - a.weeks);
+            const box = el('div', 'season-section');
+            box.appendChild(el('div', 'season-section-title', 'INJURY REPORT'));
+            if (!list.length) box.appendChild(el('div', 'season-next-label', 'Everyone healthy.'));
+            for (const n of list) {
+                const out = (n.seasonEnding || n.weeks >= 99) ? 'OUT FOR THE SEASON' : `OUT ${n.weeks} WEEK${n.weeks === 1 ? '' : 'S'}`;
+                box.appendChild(el('div', 'inj-row' + (n.abbr === season.team ? ' mine' : ''), `${n.abbr} #${n.no} ${n.nm} (${n.pos}) • ${n.kind.toUpperCase()} • ${out}`));
+            }
+            seasonContent.appendChild(box);
+        }
 
         // Last week's scores
         if (season.lastResults && season.lastResults.length) {
@@ -6287,7 +6395,7 @@
         const sides = [[g.h, g.hs, g.a], [g.a, g.as, g.h]];
         const ints = {};
         for (const [abbr, pts] of sides) {
-            const r = teamByAbbr(abbr).roster;
+            const r = healthyRoster(abbr);
             const tds = Math.max(0, Math.round(pts / 7 * 0.82)); // ~2.5 TDs a game; the rest is field goals
             const passTD = Math.round(tds * (0.55 + Math.random() * 0.15));
             const rushTDs = tds - passTD;
@@ -6324,7 +6432,7 @@
         }
         // Defense: sacks, interceptions (the other team's INTs thrown) and tackles
         for (const [abbr, , opp] of sides) {
-            const r = teamByAbbr(abbr).roster;
+            const r = healthyRoster(abbr);
             // Rotating defensive linemen (the first backup at each spot) get their share too
             const dlSubs = ((teamByAbbr(abbr).depth || {}).dl || []).map(l => l[0]).filter(Boolean);
             const defs = [...r.dl, ...r.lb, ...r.db, ...dlSubs];
