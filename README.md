@@ -4,7 +4,8 @@ A small browser-based arcade football project built as a series of standalone HT
 
 Live site:
 
-[https://nickyfoto.github.io/football/](https://nickyfoto.github.io/football/)
+- [https://football.macworks.dev/](https://football.macworks.dev/) (Cloudflare)
+- [https://nickyfoto.github.io/football/](https://nickyfoto.github.io/football/) (GitHub Pages)
 
 ## Project files
 
@@ -58,4 +59,7 @@ Open `index.html` in a browser, or open any individual HTML file directly to vie
 
 ## Publishing
 
-This repository is configured for GitHub Pages and publishes from the `main` branch root.
+The site is published in two places:
+
+- **GitHub Pages** publishes the `main` branch root automatically.
+- **Cloudflare** serves it at football.macworks.dev as an assets-only Worker named `football` (`cloudflare.config.ts`). To deploy, run `npm install` once, sign in with `npx cf auth login`, then run `npm run deploy`. That copies the `*.html` pages into `dist/` (adding the Cloudflare Web Analytics snippet to each game page, see `scripts/build-site.mjs`) and runs `cf deploy dist`. Visitor numbers are in the Cloudflare dashboard under Web Analytics.

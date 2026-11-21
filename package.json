@@ -1,0 +1,12 @@
+{
+  "name": "football",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-site.mjs",
+    "deploy": "npm run build && cf deploy dist"
+  },
+  "devDependencies": {
+    "cf": "1.0.0-rc.2"
+  }
+}
