@@ -3524,8 +3524,39 @@
         }
         if (e.wp < r.pts.length) {
             const [tx, ty] = r.pts[e.wp];
+            // Route running: good route runners snap off their breaks; sloppy ones round them
+            const a0 = e.acc;
+            if (e.cut > 0) { e.acc *= clamp(1 + ((e.rf || 0) - 0.2) * 0.5, 0.65, 1.4); e.cut--; }
             seek(e, tx, ty, 1, 0.01);
-            if (Math.hypot(tx - e.x, ty - e.y) < 0.7) e.wp++;
+            e.acc = a0;
+            if (Math.hypot(tx - e.x, ty - e.y) < 0.7) {
+                e.wp++;
+                e.cut = 14;
+                // At the break: an elite route runner plants and keeps his speed into the new direction; a
+                // sloppy one rounds it off and has to build speed back up (that's where separation comes from)
+                if (e.wp < r.pts.length) {
+                    const [nx, ny] = r.pts[e.wp];
+                    const dl = Math.hypot(nx - e.x, ny - e.y) || 1;
+                    const ux = (nx - e.x) / dl;
+                    const uy = (ny - e.y) / dl;
+                    const sp = speedOf(e);
+                    const turn = sp > 0 ? 1 - (e.vx * ux + e.vy * uy) / sp : 0; // 0 straight on, 1 = 90 degrees, 2 = reverse
+                    if (turn > 0.25) {
+                        const skill = clamp(((e.rf || 0) + 1) / 2, 0, 1);
+                        // A typical starter (rated ~78) cuts as he always did; better route runners make
+                        // part of the turn on the spot, worse ones bleed speed rounding it off
+                        if (skill > 0.6) {
+                            const snap = (skill - 0.6) * 1.6;          // JSN ~0.55, a 78 ~0
+                            e.vx = e.vx * (1 - snap) + ux * sp * snap;
+                            e.vy = e.vy * (1 - snap) + uy * sp * snap;
+                        } else {
+                            const keep = 0.7 + 0.5 * skill;            // A backup ~0.78, a 78 ~1
+                            e.vx *= keep;
+                            e.vy *= keep;
+                        }
+                    }
+                }
+            }
         } else if (r.end === 'cont') {
             const n = r.pts.length;
             const [ax, ay] = n >= 2 ? r.pts[n - 2] : [e.x, e.y - 1];
@@ -4467,7 +4498,7 @@
                 // His man is staying in to block: sit at the line and wait for him to release
                 if (r.route && playFrame < (r.route.delay || 0) && r.y < L) { seek(d, r.x, L + 2.2, 0.8, 0.8); break; }
                 // Smoothed read of the receiver's velocity: cuts create separation
-                const react = 0.105;
+                const react = 0.105 * clamp(1 + (d.rf || 0) * 0.2, 0.8, 1.2); // Better cover men read cuts quicker
                 d.tvx += (r.vx - d.tvx) * react;
                 d.tvy += (r.vy - d.tvy) * react;
                 // Inside leverage with a cushion that shrinks as the route gets deep ("stay on top")
