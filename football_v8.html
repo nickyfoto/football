@@ -3056,6 +3056,7 @@
         if (t.deep >= 2) mul({ C4: 1.5, C2: 1.3, C1: 0.7, BLITZ: 0.7 });                              // Burned deep: play it safe
         const qbInfo = sideTeam(possession).roster.qb;
         if (qbInfo && clamp(((SPEED_OVERRIDE[qbInfo.nm] || 8.5) - 7.8) / 1.8, 0, 1) > 0.55) mul({ SPY: 3 }); // Mobile QB: spy him
+        if ((t.qbRun || 0) >= 2) mul({ SPY: 1 + Math.min(4, t.qbRun * 0.8), C1: 1.3, BLITZ: 0.7 });      // He keeps running: put a spy on him
         let total = 0;
         for (const k in w) total += w[k];
         let r = Math.random() * total;
@@ -3064,13 +3065,14 @@
     }
     // What each offense has been doing this game (the defensive coordinator's notes)
     let tendencies = { HOME: { pass: 0, run: 0, deep: 0, runYds: 0 }, AWAY: { pass: 0, run: 0, deep: 0, runYds: 0 } };
-    function noteTendency(side, type, gain, air) {
+    function noteTendency(side, type, gain, air, qbRan) {
         const t = tendencies[side];
         if (!t) return;
+        if (qbRan) t.qbRun = (t.qbRun || 0) + (gain >= 4 ? 1 : 0.5); // The quarterback keeps taking off
         if (type === 'run') { t.run++; t.runYds += gain; } else t.pass++;
         if (air >= 20 && gain >= 20) t.deep++;
         // Old habits fade: weight recent plays more
-        if (t.pass + t.run > 24) { t.pass *= 0.9; t.run *= 0.9; t.runYds *= 0.9; t.deep *= 0.9; }
+        if (t.pass + t.run > 24) { t.pass *= 0.9; t.run *= 0.9; t.runYds *= 0.9; t.deep *= 0.9; t.qbRun = (t.qbRun || 0) * 0.9; }
     }
 
     function setupFormationEntities() {
@@ -3605,6 +3607,12 @@
     }
 
     // Defense [F] / DIVE: launch at the ball carrier from up to ~2.6 yards; miss and you're on the ground
+    // How well a ball carrier runs through contact: backs and receivers by rating, quarterbacks by mobility
+    function runnerGrade(c) {
+        if (!c) return 0;
+        if (c.pos === 'QB') return (qbMobility(c) - 0.65) * 1.2; // Even the fastest QBs aren't built like backs
+        return c.rf || 0;
+    }
     function tryDive(side) {
         if (gameState !== 'PLAYING' || ball.state !== 'held' || !player) return;
         const d = defenders[controlledDefIndex];
@@ -3754,14 +3762,17 @@
         }
         return best;
     }
-    function qbTakeOff(q, laneX) {
-        // The defense sees him tuck it: the spy goes now, underneath zones and loose rushers come up fast,
-        // man defenders and the deep safety hold until he crosses the line
+    // The defense sees the quarterback take off: the spy goes now, underneath zones come up after a
+    // beat, man defenders and the deep safety stay with their men until he crosses the line
+    function defenseReadsScramble() {
         for (const d of defenders) {
             if (d.role === 'SPY') d.scrReact = playFrame + 4;
             else if (d.role === 'ZONE' && d.zy < lineOfScrimmage + 12) d.scrReact = playFrame + Math.round(rand(22, 36)); // ~0.4-0.6s to see it and turn
             else d.scrReact = undefined;
         }
+    }
+    function qbTakeOff(q, laneX) {
+        defenseReadsScramble();
         q.escape = null;
         q.scramble = true;
         q.path = [[laneX, Math.min(q.y + 2, lineOfScrimmage - 1)], [laneX, lineOfScrimmage + 3]];
@@ -4255,6 +4266,12 @@
     function updatePlay() {
         playFrame++;
         checkLiveFouls();
+        if (qb && !qb.scramble && player === qb && ball.state === 'held' && !hasCrossedLOS && !isReturn && humanOffense()
+            && selectedOffPlay.type === 'PASS' && playFrame > 12
+            && (Math.abs(qb.x - ballSpotX) > 3.5 || (qb.vy > 0.07 && qb.y > (qb.dropY || qb.y) + 1.5))) {
+            qb.scramble = true;
+            defenseReadsScramble();
+        }
         const play = selectedOffPlay;
         const humanOff = humanOffense();
         const inpO = humanOff ? offenseInput() : null;
@@ -4593,7 +4610,7 @@
             let help = 0;
             for (const o of defenders) if (o !== d && o.down === 0 && dist(o, c) < 1.9) help++;
             p += help * 0.11;
-            p += (d.rf || 0) * 0.05 - (c.rf || 0) * 0.09; // Sure tacklers vs. backs who break them
+            p += (d.rf || 0) * 0.05 - runnerGrade(c) * 0.09; // Sure tacklers vs. backs who break them
             // Open field, one on one, past the line: the hardest tackle in football
             if (help === 0 && !d.eng && c.y > lineOfScrimmage + 2.5 && !isReturn) p -= 0.07;
             if (mine) p += 0.07;
@@ -4628,7 +4645,7 @@
         lastTacklerPk = tackler ? tackler.pk : null;
         const downhill = clamp(c.vy / c.spd, 0, 1);
         const power = (c.pos === 'RB' ? 1.15 : 1) * (SPEED_OVERRIDE[c.nm] ? 1 : 0.95);
-        let yac = downhill * rand(0.4, 2.6) * power * (help >= 2 ? 0.45 : (help === 1 ? 0.75 : 1)) * clamp(1 + (c.rf || 0) * 0.3, 0.6, 1.4);
+        let yac = downhill * rand(0.4, 2.6) * power * (help >= 2 ? 0.45 : (help === 1 ? 0.75 : 1)) * clamp(1 + runnerGrade(c) * 0.3, 0.6, 1.4);
         // Sometimes a back drags the tackler for extra yards before help arrives
         if (!isReturn && c.y > lineOfScrimmage && Math.random() < (help === 0 ? 0.1 : 0)) yac += downhill * rand(1, 3) * power;
         const sack = c === qb && !hasCrossedLOS && !isReturn;
@@ -5438,7 +5455,7 @@
         let big = oob ? 'OUT OF BOUNDS' : (sack ? 'SACKED!' : (playLog && playLog.slid ? 'QB SLIDES' : (gain >= 20 ? 'BIG GAIN!' : 'TACKLED')));
         let color = sack ? '#ef4444' : '#fbbf24';
         if (sack) sfx.roar(0.13);
-        noteTendency(side, playLog && playLog.type === 'run' ? 'run' : 'pass', gain, playLog && playLog.caughtAt !== undefined ? playLog.caughtAt - (prePlay ? prePlay.los : lineOfScrimmage) : 0);
+        noteTendency(side, playLog && playLog.type === 'run' ? 'run' : 'pass', gain, playLog && playLog.caughtAt !== undefined ? playLog.caughtAt - (prePlay ? prePlay.los : lineOfScrimmage) : 0, c === qb && !!(qb && qb.scramble));
         if (playFlag && playFlag.pending) { applyAddOn(side); return; }
         reviewAfterTackle(c, spot, gain, sack);
         if (lineOfScrimmage >= firstDownLine) {
