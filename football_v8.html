@@ -6115,56 +6115,14 @@
 
     // NFL-style formula: 6 division games, a full rotation against a division in your conference and one in the
     // other conference, plus 3 more (2 same conference, 1 other) = 17 games; all 32 teams play every week
+    // The real 2026 NFL regular-season schedule: 18 weeks, 17 games per team, byes, international games (|city)
+    const NFL_SCHEDULE_2026 = [["NE@SEA","SF@LAR|MELBOURNE","CHI@CAR","TB@CIN","NO@DET","BUF@HOU","BAL@IND","CLE@JAX","ATL@PIT","NYJ@TEN","ARI@LAC","MIA@LV","GB@MIN","WAS@PHI","DAL@NYG","DEN@KC"],["DET@BUF","CAR@ATL","NO@BAL","MIN@CHI","CIN@HOU","PIT@NE","GB@NYJ","CLE@TB","PHI@TEN","JAX@DEN","LV@LAC","SEA@ARI","WAS@DAL","MIA@SF","IND@KC","NYG@LAR"],["ATL@GB","LAC@BUF","CAR@CLE","NYJ@DET","HOU@IND","NE@JAX","KC@MIA","TEN@NYG","CIN@PIT","SEA@WAS","ARI@SF","MIN@TB","BAL@DAL|RIO DE JANEIRO","LV@NO","LAR@DEN","PHI@CHI"],["PIT@CLE","IND@WAS|LONDON","TEN@BAL","NE@BUF","NYJ@CHI","JAX@CIN","DAL@HOU","ARI@NYG","LAR@PHI","GB@TB","MIA@MIN","KC@LV","LAC@SEA","DEN@SF","DET@CAR","ATL@NO"],["TB@DAL","PHI@JAX|LONDON","CIN@MIA","LV@NE","MIN@NO","CLE@NYJ","IND@PIT","HOU@TEN","NYG@WAS","CHI@GB","DEN@LAC","DET@ARI","SF@SEA","BAL@ATL","BUF@LAR"],["SEA@DEN","HOU@JAX|LONDON","CHI@ATL","BAL@CLE","TEN@IND","NYJ@NE","NO@NYG","CAR@PHI","PIT@TB","ARI@LAR","LAC@KC","BUF@LV","DAL@GB","WAS@SF"],["NE@CHI","PIT@NO|PARIS","SF@ATL","CIN@BAL","TB@CAR","NYG@HOU","IND@MIN","MIA@NYJ","CLE@TEN","DEN@ARI","GB@DET","LAR@LV","KC@SEA","DAL@PHI"],["CAR@GB","BAL@BUF","TEN@CIN","ARI@DAL","MIN@DET","IND@JAX","LV@NYJ","CLE@PIT","ATL@TB","LAC@LAR","KC@DEN","NE@MIA","PHI@WAS","CHI@SEA"],["JAX@BAL","CIN@ATL|MADRID","DEN@CAR","DAL@IND","NYJ@KC","DET@MIA","CLE@NO","NYG@PHI","LAR@WAS","HOU@LAC","LV@SF","GB@NE","ARI@SEA","TB@CHI","BUF@MIN"],["WAS@NYG","NE@DET|MUNICH","KC@ATL","HOU@CLE","MIN@GB","MIA@IND","CAR@NO","BUF@NYJ","JAX@TEN","LAR@ARI","SEA@LV","SF@DAL","PIT@CIN","LAC@BAL"],["IND@HOU","MIA@BUF","BAL@CAR","NO@CHI","TEN@DAL","TB@DET","ARI@KC","PIT@PHI","NYJ@LAC","JAX@NYG","LV@DEN","MIN@SF|MEXICO CITY","CIN@WAS"],["GB@LAR","CHI@DET","PHI@DAL","KC@BUF","DEN@PIT","NO@CIN","BAL@HOU","NYG@IND","NYJ@MIA","ATL@MIN","TEN@JAX","NE@LAC","WAS@ARI","SEA@SF","LV@CLE","CAR@TB"],["KC@LAR","DET@ATL","JAX@CHI","CIN@CLE","GB@NO","SF@NYG","LAC@TB","WAS@TEN","PHI@ARI","MIA@DEN","CAR@MIN","BUF@NE","HOU@PIT","DAL@SEA"],["MIN@NE","TB@BAL","NO@CAR","ATL@CLE","TEN@DET","CHI@MIA","DEN@NYJ","IND@PHI","HOU@WAS","LAC@LV","KC@CIN","NYG@SEA","LAR@SF","BUF@GB","PIT@JAX"],["SF@LAC","SEA@PHI","CHI@BUF","CIN@CAR","MIA@GB","JAX@HOU","CLE@NYG","BAL@PIT","NO@TB","IND@TEN","ATL@WAS","NYJ@ARI","DAL@LAR","DEN@LV","DET@MIN","NE@KC"],["HOU@PHI","GB@CHI","BUF@DEN","LAR@SEA","CLE@BAL","LAC@MIA","ARI@NO","NE@NYJ","TEN@LV","SF@KC","JAX@DAL","TB@ATL","CIN@IND","WAS@MIN","CAR@PIT","NYG@DET"],["BAL@CIN","NO@ATL","SEA@CAR","IND@CLE","NYG@DAL","BUF@MIA","MIN@NYJ","PIT@TEN","LV@ARI","DET@CHI","PHI@SF","WAS@JAX","KC@LAC","DEN@NE","LAR@TB","HOU@GB"],["SF@ARI","PIT@BAL","NYJ@BUF","ATL@CAR","CLE@CIN","LAC@DEN","DET@GB","TEN@HOU","JAX@IND","LV@KC","SEA@LAR","CHI@MIN","MIA@NE","TB@NO","PHI@NYG","DAL@WAS"]];
     function buildSchedule() {
-        const divs = Object.values(DIVISIONS); // 0-3 AFC E/N/S/W, 4-7 NFC E/N/S/W
-        const weeks = [];
-        const rr = [[[0, 1], [2, 3]], [[0, 2], [1, 3]], [[0, 3], [1, 2]]];
-        for (let leg = 0; leg < 2; leg++) {
-            for (let r = 0; r < 3; r++) {
-                const wk = [];
-                divs.forEach(d => rr[r].forEach(([i, j]) => wk.push(leg === 0 ? { h: d[i], a: d[j] } : { h: d[j], a: d[i] })));
-                weeks.push(wk);
-            }
-        }
-        const cross = (pairs, rounds) => {
-            for (const r of rounds) {
-                const wk = [];
-                pairs.forEach(([A, B]) => {
-                    for (let i = 0; i < 4; i++) {
-                        const j = (i + r) % 4;
-                        wk.push((i + r) % 2 === 0 ? { h: divs[A][i], a: divs[B][j] } : { h: divs[B][j], a: divs[A][i] });
-                    }
-                });
-                weeks.push(wk);
-            }
-        };
-        cross([[0, 1], [2, 3], [4, 5], [6, 7]], [0, 1, 2, 3]);
-        cross([[0, 4], [1, 5], [2, 6], [3, 7]], [0, 1, 2, 3]);
-        cross([[0, 2], [1, 3], [4, 6], [5, 7]], [0, 1]);
-        cross([[0, 5], [1, 6], [2, 7], [3, 4]], [0]);
-        // Balance home games: division games are 3 home / 3 away; flip other games toward 8-9 home each
-        const home = {};
-        const all = weeks.flat();
-        for (const g of all) home[g.h] = (home[g.h] || 0) + (divisionOf(g.h) === divisionOf(g.a) ? 1 : 0);
-        const nonDiv = all.filter(g => divisionOf(g.h) !== divisionOf(g.a));
-        for (const g of shuffle(nonDiv.slice())) {
-            if ((home[g.a] || 0) < (home[g.h] || 0) || ((home[g.a] || 0) === (home[g.h] || 0) && Math.random() < 0.5)) {
-                const t = g.h; g.h = g.a; g.a = t;
-            }
-            home[g.h] = (home[g.h] || 0) + 1;
-        }
-        // Then flip any game whose home team has 2+ more home games than its opponent, until balanced
-        for (let pass = 0, changed = true; changed && pass < 60; pass++) {
-            changed = false;
-            for (const g of shuffle(nonDiv.slice())) {
-                if (home[g.h] - home[g.a] >= 2) {
-                    home[g.h]--; home[g.a]++;
-                    const t = g.h; g.h = g.a; g.a = t;
-                    changed = true;
-                }
-            }
-        }
-        return shuffle(weeks).map(wk => wk.map(g => ({ h: g.h, a: g.a, hs: null, as: null })));
+        return NFL_SCHEDULE_2026.map(wk => wk.map((code) => {
+            const [m, site] = code.split('|');
+            const [a, h] = m.split('@');
+            return site ? { h, a, hs: null, as: null, neutral: true, site } : { h, a, hs: null, as: null };
+        }));
     }
 
     function startNewSeason(team) {
@@ -6497,7 +6455,7 @@
             const opp = home ? g.a : g.h;
             const label = season.phase === 'playoffs'
                 ? `${ROUND_NAMES[season.playoffs.round]}: (${seedOf(season.team)}) ${me.abbr} ${g.neutral ? 'vs' : (home ? 'vs' : '@')} (${seedOf(opp)}) ${teamByAbbr(opp).name}`
-                : `NEXT: ${home ? 'vs' : '@'} ${teamByAbbr(opp).name} (${recordText(st[opp])})`;
+                : `NEXT: ${g.site ? 'vs' : (home ? 'vs' : '@')} ${teamByAbbr(opp).name} (${recordText(st[opp])})${g.site ? ` • IN ${g.site}` : ''}`;
             next.appendChild(el('div', 'season-next-label', label));
             const row = el('div', 'season-btn-row');
             const play = el('button', 'arcade-btn', 'PLAY GAME');
@@ -6511,13 +6469,31 @@
                 rest.addEventListener('click', () => {
                     while (season.phase === 'regular') {
                         const ug = userGame();
-                        if (ug) simGame(ug, false, false);
+                        if (ug) simGame(ug, false, !!ug.neutral);
                         completeWeek();
                     }
                     showSeasonHub();
                 });
                 row.appendChild(rest);
             }
+            next.appendChild(row);
+        } else if (season.phase === 'regular') {
+            // Bye week: the rest of the league plays
+            next.appendChild(el('div', 'season-next-label', `WEEK ${season.week + 1}: ${me.name} ON BYE`));
+            const row = el('div', 'season-btn-row');
+            const sim = el('button', 'season-btn', 'SIM BYE WEEK');
+            sim.addEventListener('click', simUserGame);
+            const rest = el('button', 'season-btn', 'SIM TO PLAYOFFS');
+            rest.addEventListener('click', () => {
+                while (season.phase === 'regular') {
+                    const ug = userGame();
+                    if (ug) simGame(ug, false, !!ug.neutral);
+                    completeWeek();
+                }
+                showSeasonHub();
+            });
+            row.appendChild(sim);
+            row.appendChild(rest);
             next.appendChild(row);
         } else if (season.phase === 'playoffs') {
             const made = season.playoffs.seeds.AFC.includes(season.team) || season.playoffs.seeds.NFC.includes(season.team);
@@ -6650,7 +6626,7 @@
             text.textContent = `Saved season: ${teamByAbbr(s.team).name} ${recordText(st[s.team])} • ${where}. Or pick a team below to start a new season.`;
             resume.classList.remove('hidden');
         } else {
-            text.textContent = 'Pick your team below: 17 games, division standings, playoffs and the Super Bowl. Play or sim each week.';
+            text.textContent = 'Pick your team below: the real 2026 NFL schedule (17 games over 18 weeks, with a bye), division standings, playoffs and the Super Bowl. Play or sim each week.';
             resume.classList.add('hidden');
         }
         box.classList.toggle('hidden', !seasonMenu);
