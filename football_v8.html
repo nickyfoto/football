@@ -2297,6 +2297,8 @@
         timeouts = { HOME: 3, AWAY: 3 };
         challenges = { HOME: { used: 0, won: 0 }, AWAY: { used: 0, won: 0 } };
         fatigue = {};
+        injuries = {};
+        injuryNews = [];
         lineups = { HOME: null, AWAY: null };
         tendencies = { HOME: { pass: 0, run: 0, deep: 0, runYds: 0 }, AWAY: { pass: 0, run: 0, deep: 0, runYds: 0 } };
         onField = [];
@@ -2473,7 +2475,8 @@
             return best ? `${label}: ${best.nm} (${best.abbr}) ${best[key]}` : '';
         };
         const lead = [top('pass', 'PASSING'), top('rush', 'RUSHING'), top('rec', 'RECEIVING')].filter(Boolean).join(' • ');
-        return `FINAL: ${userTeam.name} ${scoreHome} - ${aiTeam.name} ${scoreAway}\n${line('HOME')}\n${line('AWAY')}${lead ? '\n' + lead : ''}`;
+        const hurt = Object.values(injuries).map(n => `${sideTeam(n.side).abbr} ${n.nm} (${n.pos}, ${n.kind}${n.out ? ', out' : (snapCount >= n.back ? ', returned' : ', did not return')})`);
+        return `FINAL: ${userTeam.name} ${scoreHome} - ${aiTeam.name} ${scoreAway}\n${line('HOME')}\n${line('AWAY')}${lead ? '\n' + lead : ''}${hurt.length ? '\nINJURIES: ' + hurt.join(' • ') : ''}`;
     }
 
     function showGameOver(title, color, subtitle) {
@@ -2908,6 +2911,18 @@
     function setupPreSnap() {
         isDefense = (gameMode === '1P' && possession === 'AWAY');
         accountFatigue();
+        lastCarrierPk = lastTacklerPk = null;
+        if (injuryNews.length) {
+            const n = injuryNews.shift();
+            const tm = sideTeam(n.side);
+            gameState = 'ANIMATING';
+            clockRunning = false;
+            fx('whistle');
+            const status = n.out ? (n.kind === 'concussion' ? 'OUT: IN THE CONCUSSION PROTOCOL' : 'OUT FOR THE GAME') : 'QUESTIONABLE TO RETURN';
+            pbp(n.side, `INJURY: ${tm.abbr} #${n.no} ${n.nm} (${n.pos}), ${n.kind}. ${n.out ? 'Out for the game.' : 'Questionable to return.'}`);
+            showBigMessage('INJURY TIMEOUT', '#f97316', () => setupPreSnap(), 2000, `${tm.abbr} #${n.no} ${n.nm} (${n.pos}) • ${n.kind.toUpperCase()} • ${status}`);
+            return;
+        }
         lineups.HOME = chooseLineup('HOME');
         lineups.AWAY = chooseLineup('AWAY');
         updateSubsHud();
@@ -4314,6 +4329,8 @@
     function handleTackle(tackler, help) {
         // Yards after contact: a runner moving downhill drives the pile / falls forward
         const c = player;
+        lastCarrierPk = c ? c.pk : null;
+        lastTacklerPk = tackler ? tackler.pk : null;
         const downhill = clamp(c.vy / c.spd, 0, 1);
         const power = (c.pos === 'RB' ? 1.15 : 1) * (SPEED_OVERRIDE[c.nm] ? 1 : 0.95);
         let yac = downhill * rand(0.4, 2.6) * power * (help >= 2 ? 0.45 : (help === 1 ? 0.75 : 1)) * clamp(1 + (c.rf || 0) * 0.3, 0.6, 1.4);
@@ -4597,6 +4614,10 @@
     //  backs and defensive linemen rotate, quarterbacks and offensive linemen play every snap.
     // =====================================================================================
     let fatigue = {};
+    let injuries = {};      // pk -> { kind, back: snap he can return (Infinity = out for the game), side, no, nm, pos }
+    let injuryNews = [];    // Injuries to announce before the next snap
+    let lastCarrierPk = null;
+    let lastTacklerPk = null;
     let lineups = { HOME: null, AWAY: null };
     let onField = [];
     let snapCount = 0;
@@ -4639,14 +4660,15 @@
             const sk = pkeyOf(abbr, starter);
             const prevPick = prev ? slotGet(prev, key, i) : null;
             const starterOut = prevPick && prevPick.pk !== sk; // He was resting last snap
+            const hurt = isHurt(sk);
             let pick = starter;
-            if (mop && backups.length) pick = backups.find(b => !used.has(pkeyOf(abbr, b))) || starter;
-            else if (energyOf(sk) < (starterOut ? SUB_BACK : SUB_OUT)) {
-                // Freshest available backup who's not already on the field
+            if (mop && backups.length) pick = backups.find(b => !used.has(pkeyOf(abbr, b)) && !isHurt(pkeyOf(abbr, b))) || starter;
+            else if (hurt || energyOf(sk) < (starterOut ? SUB_BACK : SUB_OUT)) {
+                // Freshest available backup who's not already on the field (or hurt); an injury puts someone in regardless
                 let best = null;
                 for (const b of backups) {
                     const bk = pkeyOf(abbr, b);
-                    if (used.has(bk) || energyOf(bk) < SUB_OUT) continue;
+                    if (used.has(bk) || isHurt(bk) || (!hurt && energyOf(bk) < SUB_OUT)) continue;
                     if (!best || energyOf(bk) > energyOf(pkeyOf(abbr, best))) best = b;
                 }
                 if (best) pick = best;
@@ -4657,7 +4679,7 @@
             const entry = { ...pick, pos: starter.pos, pk, rot, backup: pick !== starter, energy: energyOf(pk) };
             if (i === undefined) out[key] = entry; else out[key][i] = entry;
             if (!quiet && prevPick && prevPick.pk !== pk) {
-                out.changes.push(pick === starter ? `#${pick.no} ${pick.nm} back in (${starter.pos})` : `#${pick.no} ${pick.nm} in for #${starter.no} ${starter.nm} (${starter.pos})`);
+                out.changes.push(pick === starter ? `#${pick.no} ${pick.nm} back in (${starter.pos})` : `#${pick.no} ${pick.nm} in for #${starter.no} ${starter.nm} (${starter.pos}${hurt ? ', injured' : ''})`);
             }
         }
         out.mop = mop;
@@ -4671,9 +4693,38 @@
     }
 
     // After each scrimmage snap: the players who were out there pay for it, everyone else catches his breath
+    const isHurt = (pk) => !!injuries[pk] && snapCount < injuries[pk].back;
+    const INJURY_KINDS = [['ankle', 0.45], ['knee', 0.6], ['hamstring', 0.55], ['shoulder', 0.4], ['concussion', 1], ['back', 0.3], ['hand', 0.15], ['groin', 0.4]];
+    // Only players with someone behind them on the depth chart can go down (so a slot never goes empty)
+    function hasBackup(pk) {
+        const abbr = pk.split(':')[0];
+        const team = sideTeam(userTeam.abbr === abbr ? 'HOME' : 'AWAY');
+        for (const [key, i] of SLOTS) {
+            const list = [slotGet(team.roster, key, i), ...((team.depth ? slotGet(team.depth, key, i) : null) || [])].filter(Boolean);
+            if (list.some(p => pkeyOf(abbr, p) === pk)) return list.filter(p => !isHurt(pkeyOf(abbr, p)) && pkeyOf(abbr, p) !== pk).length > 0;
+        }
+        return false;
+    }
+    function rollInjuries() {
+        for (const e of onField) {
+            if (!e.pk || isHurt(e.pk) || injuries[e.pk]) continue; // One injury per player per game
+            let p = 0.0007;
+            if (e.pk === lastCarrierPk) p += 0.004;
+            if (e.pk === lastTacklerPk) p += 0.0015;
+            if (energyOf(e.pk) < 50) p *= 1.5;
+            if (Math.random() >= p || !hasBackup(e.pk)) continue;
+            const [kind, outOdds] = INJURY_KINDS[Math.floor(Math.random() * INJURY_KINDS.length)];
+            const out = Math.random() < outOdds;
+            const abbr = e.pk.split(':')[0];
+            const side = userTeam.abbr === abbr ? 'HOME' : 'AWAY';
+            injuries[e.pk] = { kind, back: out ? Infinity : snapCount + Math.round(rand(8, 26)), side, no: e.no, nm: e.nm, pos: e.pos, out };
+            injuryNews.push(injuries[e.pk]);
+        }
+    }
     function accountFatigue() {
         if (accountedSnap === snapCount) return;
         accountedSnap = snapCount;
+        rollInjuries();
         const played = new Set();
         for (const e of onField) {
             if (!e.pk || !e.rot) continue;
