@@ -225,6 +225,10 @@
             transform: translateY(-2px);
         }
         .play-card.active { border-color: #fbbf24; background: rgba(51, 65, 85, 0.98); box-shadow: 0 0 0 2px rgba(251,191,36,0.35); }
+        .play-card.compact { padding: 4px 4px 3px 18px; position: relative; text-align: left; border-width: 1.5px; border-radius: 7px; }
+        .play-card.compact:hover { transform: none; }
+        .play-key { position: absolute; left: 3px; top: 3px; min-width: 12px; height: 12px; line-height: 12px; font-size: 9px; text-align: center; border-radius: 3px; background: #0f172a; color: #e2e8f0; border: 1px solid #475569; font-family: monospace; }
+        .playbook-grid { max-height: 34vh; overflow-y: auto; }
 
         .opt-group { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
         .opt-btn {
@@ -1149,13 +1153,32 @@
         'NFC EAST': ['DAL', 'NYG', 'PHI', 'WAS'], 'NFC NORTH': ['CHI', 'DET', 'GB', 'MIN'],
         'NFC SOUTH': ['ATL', 'CAR', 'NO', 'TB'], 'NFC WEST': ['ARI', 'LAR', 'SEA', 'SF']
     };
-    // Team strength for simulated games: 2026 form (record through ~Week 10, Nov 2026) blended 75/25 with last season,
-    // then raised for teams getting injured starters back (everyone healthy after the trade deadline)
-    const TEAM_RATING = {
+    // Team strength for simulated games: half 2026 form (record through ~Week 10, Nov 2026, blended 75/25 with last
+    // season), half roster talent computed from the healthy starters' player ratings (see below)
+    const TEAM_FORM = {
         DET: 90, KC: 89, BUF: 88, SF: 87, BAL: 87, MIN: 87, GB: 87, DEN: 86, JAX: 86, CHI: 86, LAR: 86, NE: 85,
         NYG: 84, CIN: 83, PHI: 83, PIT: 83, SEA: 82, CAR: 82, WAS: 81, CLE: 80, HOU: 80, DAL: 79, ARI: 79, IND: 77,
         TB: 77, LAC: 77, ATL: 76, NO: 76, LV: 75, MIA: 75, NYJ: 72, TEN: 70
     };
+    // Roster talent, weighted the way NFL games are won: the quarterback most, then the secondary, pass rush,
+    // offensive line and receivers. Spread onto the same ~70-92 scale as form, then averaged with it.
+    function rosterStrength(t) {
+        const r = t.roster;
+        const avg = (a) => a.reduce((s, x) => s + ((x && x.r) || 70), 0) / a.length;
+        return 0.30 * r.qb.r + 0.12 * avg(r.ol) + 0.13 * avg([r.wr1, r.wr2, r.wr3, r.te]) + 0.04 * r.rb.r
+            + 0.15 * avg(r.dl) + 0.08 * avg([...r.lb, r.sam]) + 0.18 * avg(r.db);
+    }
+    const TEAM_RATING = {};
+    const ROSTER_RATING = {};
+    (function () {
+        const raw = nfl2026Teams.map((t) => [t.abbr, rosterStrength(t)]);
+        const mean = raw.reduce((s, x) => s + x[1], 0) / raw.length;
+        const sd = Math.sqrt(raw.reduce((s, x) => s + (x[1] - mean) ** 2, 0) / raw.length) || 1;
+        for (const [abbr, s] of raw) {
+            ROSTER_RATING[abbr] = Math.round(Math.min(94, Math.max(66, 81 + (s - mean) / sd * 5.5)));
+            TEAM_RATING[abbr] = Math.round(0.5 * (TEAM_FORM[abbr] || 78) + 0.5 * ROSTER_RATING[abbr]);
+        }
+    })();
     // All 32 teams, alphabetical on the team-select screen
     nfl2026Teams.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -1627,6 +1650,13 @@
         DEEPX:   { pts: [[0, 6], [13, 13]], end: 'cont' },
         SMASHC:  { pts: [[0, 9], [-6, 16]], end: 'cont' },
         SCREEN:  { pts: [[-3, 1.2], [-7.5, 2.4]], end: 'sit', delay: 30 },
+        IN:      { pts: [[0, 5], [8, 5.5]], end: 'cont' },
+        DIG15:   { pts: [[0, 15], [12, 15.5]], end: 'cont' },
+        OUT12:   { pts: [[0, 12], [-8, 12.5]], end: 'cont' },
+        WHEEL:   { pts: [[-4, 1], [-7, 6], [-7, 40]], end: 'cont' },
+        BUBBLE:  { pts: [[-2.5, -0.4], [-5.5, 0.6], [-6, 25]], end: 'cont' },
+        SHALLOW: { pts: [[1, 2], [14, 3.5]], end: 'cont' },
+        QOUT:    { pts: [[0, 4], [-6, 4]], end: 'cont' },
         BLOCK:   null
     };
 
@@ -1655,7 +1685,37 @@
         { id: 'SCREEN', name: 'RB SCREEN',    desc: 'Let them rush, dump it to the back', type: 'PASS', form: 'GUN', drop: 2.5,
           routes: ['BLOCK', 'BLOCK', 'BLOCK', 'BLOCK', 'SCREEN'] },
         { id: 'YCROSS', name: 'Y CROSS',      desc: 'Tight end deep across the middle', type: 'PASS', form: 'GUN', drop: 3,
-          routes: ['GO', 'DEEPX', 'CURL', 'FLAT', 'CHECK'] }
+          routes: ['GO', 'DEEPX', 'CURL', 'FLAT', 'CHECK'] },
+        // --- More runs ---
+        { id: 'OZ',     name: 'OUTSIDE ZONE', desc: 'Stretch it wide, one cut and go', type: 'RUN', form: 'PISTOL',
+          routes: ['BLOCK', 'BLOCK', 'BLOCK', 'BLOCK', null], rbPath: [[2, -3.5], [6, 0], [8, 4], [9, 30]], handoff: 22, side: 1 },
+        { id: 'COUNTER', name: 'COUNTER',     desc: 'Jab one way, cut back the other', type: 'RUN', form: 'PISTOL',
+          routes: ['BLOCK', 'BLOCK', 'BLOCK', 'BLOCK', null], rbPath: [[-1.5, -4.6], [1.2, -3.6], [2.6, 0.5], [2.8, 6], [2.8, 30]], handoffAt: 26, side: 1 },
+        { id: 'DIVE',   name: 'QUICK DIVE',   desc: 'Fast handoff straight ahead',     type: 'RUN', form: 'PISTOL',
+          routes: ['BLOCK', 'BLOCK', 'BLOCK', 'BLOCK', null], rbPath: [[0.3, -3], [0.4, 0.5], [0.5, 6], [0.5, 30]], handoffAt: 10 },
+        { id: 'SNEAK',  name: 'QB SNEAK',     desc: 'Under center, push for a yard',   type: 'RUN', form: 'UC', qbRun: true, handoffAt: 4, qbLane: 0,
+          routes: ['BLOCK', 'BLOCK', 'BLOCK', 'BLOCK', 'BLOCK'] },
+        { id: 'QBDRAW', name: 'QB DRAW',      desc: 'Show pass, then the QB runs it',  type: 'RUN', form: 'GUN', drop: 1, qbRun: true, handoffAt: 40, qbLane: 1.5,
+          routes: ['GO', 'BLOCK', 'GO', 'SEAM', 'BLOCK'] },
+        // --- More passes ---
+        { id: 'LEVELS', name: 'LEVELS',       desc: 'In-routes at 5 and 12 yards',     type: 'PASS', form: 'GUN', drop: 2,
+          routes: ['IN', 'SEAM', 'CURL', 'DIG', 'SWING'] },
+        { id: 'DAGGER', name: 'DAGGER',       desc: 'Seam clears it, dig at 15',       type: 'PASS', form: 'GUN', drop: 3,
+          routes: ['DIG15', 'STICK', 'GO', 'SEAM', 'CHECK'] },
+        { id: 'STICK',  name: 'STICK',        desc: 'Quick option routes at 6',        type: 'PASS', form: 'GUN', drop: 1.5,
+          routes: ['GO', 'STICK', 'HITCH', 'STICK', 'FLAT'] },
+        { id: 'SHALLOW', name: 'SHALLOW CROSS', desc: 'Shallow under, dig over it',    type: 'PASS', form: 'GUN', drop: 2,
+          routes: ['DIG', 'SEAM', 'POST', 'SHALLOW', 'CHECK'] },
+        { id: 'FLOOD',  name: 'FLOOD',        desc: 'Three levels to one side',        type: 'PASS', form: 'GUN', drop: 3,
+          routes: ['GO', 'DRAG', 'CURL', 'OUT12', 'FLAT'] },
+        { id: 'WHEEL',  name: 'RB WHEEL',     desc: 'Back up the sideline, post inside', type: 'PASS', form: 'GUN', drop: 3,
+          routes: ['SLANT', 'SEAM', 'CURL', 'POST', 'WHEEL'] },
+        { id: 'BOOT',   name: 'PA BOOTLEG',   desc: 'Fake it, roll out, throw on the move', type: 'PASS', form: 'PISTOL', drop: 2, playAction: 36, boot: 1,
+          routes: ['POST', 'FLAT', 'CORNER', 'DRAG', 'PAFLAT'] },
+        { id: 'BUBBLE', name: 'BUBBLE SCREEN', desc: 'Get it to the slot, block it up', type: 'PASS', form: 'GUN', drop: 0.5,
+          routes: ['BLOCK', 'BLOCK', 'BLOCK', 'BUBBLE', 'BLOCK'] },
+        { id: 'QUICKOUT', name: 'SPEED OUTS', desc: 'Quick outs to the sideline',      type: 'PASS', form: 'GUN', drop: 1,
+          routes: ['QOUT', 'STICK', 'QOUT', 'SLANT', 'SWING'] }
     ];
 
     const DEFENSIVE_PLAYS = [
@@ -1666,8 +1726,18 @@
         { id: 'FIRE',  name: 'FIRE ZONE',    desc: '5 rush, three deep, three under' },
         { id: 'BLITZ', name: 'SIX-MAN BLITZ', desc: '6 rush, man under, 1 deep' },
         { id: 'SPY',   name: 'QB SPY',       desc: 'Man coverage + MLB spies QB' },
-        { id: 'RUN',   name: 'RUN STUFF',    desc: '8 in the box, fill gaps' }
+        { id: 'RUN',   name: 'RUN STUFF',    desc: '8 in the box, fill gaps' },
+        { id: 'C0',    name: 'COVER 0 BLITZ', desc: 'Everybody comes, man with no help' },
+        { id: 'C2M',   name: '2-MAN UNDER',  desc: 'Man underneath, two deep safeties' },
+        { id: 'C6',    name: 'COVER 6',      desc: 'Quarters to one side, Cover 2 the other' },
+        { id: 'ROBBER', name: 'COVER 1 ROBBER', desc: 'Man, a safety robs the middle' },
+        { id: 'CBLITZ', name: 'CORNER BLITZ', desc: 'Nickel off the edge, three deep behind it' },
+        { id: 'SBLITZ', name: 'SAFETY BLITZ', desc: 'Strong safety rushes, man behind' },
+        { id: 'PREVENT', name: 'PREVENT',    desc: 'Three rush, nothing deep gets out' },
+        { id: 'GOAL',  name: 'GOAL LINE',    desc: 'Heavy front, man everywhere' }
     ];
+    // Keyboard shortcuts for the play-call cards, in order (skipping keys the game already uses)
+    const PLAY_KEYS = '1234567890RYUIOPGHJKLZVBNM';
 
     // --- FIELD & PHYSICS CONSTANTS ---
     const FIELD_WIDTH_YARDS = 53.33;
@@ -2004,7 +2074,7 @@
                     card.className = 'team-card';
                     card.style.background = `linear-gradient(135deg, ${team.p} 0%, ${team.p}dd 65%, ${team.s} 100%)`;
                     card.innerHTML = `
-                        <div class="text-white text-xs md:text-sm font-bold drop-shadow">${team.name}</div>
+                        <div class="text-white text-xs md:text-sm font-bold drop-shadow">${team.name} <span class="text-[10px] font-mono bg-black/40 rounded px-1 align-middle" title="Team rating: half 2026 form, half roster talent">OVR ${TEAM_RATING[team.abbr] || ''}</span></div>
                         <div class="text-[10px] text-white/90 mt-0.5">QB ${team.roster.qb.nm} ${team.roster.qb.r || ''} • WR ${team.roster.wr1.nm} ${team.roster.wr1.r || ''}</div>
                         <div class="pick-badge hidden"></div>
                     `;
@@ -2174,6 +2244,12 @@
 
         const code = e.code || ('Key' + e.key.toUpperCase());
         if (choiceKind && /^Digit[1-3]$/.test(code)) { pickChoiceByNumber(Number(code.slice(5))); return; }
+        if (gameState === 'PRE_SNAP' && !choiceKind) {
+            const ch = code.startsWith('Digit') ? code.slice(5) : (code.startsWith('Key') ? code.slice(3) : '');
+            const idx = ch ? PLAY_KEYS.indexOf(ch) : -1;
+            const book = localOnDefense() ? DEFENSIVE_PLAYS : OFFENSIVE_PLAYS;
+            if (idx >= 0 && idx < book.length) { doAction(localOnDefense() ? 'defPlay' : 'offPlay', book[idx].id); return; }
+        }
         if (e.key === ' ') doAction('primary');
         else if (code === 'KeyQ') doAction('switch');
         else if (code === 'KeyT') doAction('timeout');
@@ -2998,19 +3074,26 @@
         playcallTitle.innerText = onDefScreen
             ? `${team.name} DEFENSE • CALL A COVERAGE • TAP A DEFENDER TO CONTROL HIM`
             : `${team.name} OFFENSE • ${isTwoPointConversion ? '2-POINT TRY' : 'CALL A PLAY'}`;
-        playcallGrid.className = `grid gap-2 ${onDefScreen ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-3 md:grid-cols-6'}`;
+        playcallGrid.className = `grid gap-1.5 playbook-grid ${onDefScreen ? 'grid-cols-3 md:grid-cols-8' : 'grid-cols-3 md:grid-cols-7'}`;
         playcallGrid.innerHTML = '';
-        plays.forEach(play => {
+        const sel = plays.find(p => p.id === current);
+        playcallTitle.innerText += sel ? ` • ${sel.name}: ${sel.desc}` : '';
+        plays.forEach((play, i) => {
             const btn = document.createElement('div');
-            btn.className = `play-card${play.id === current ? ' active' : ''}`;
+            btn.className = `play-card compact${play.id === current ? ' active' : ''}`;
+            btn.title = play.desc;
+            const keyEl = document.createElement('span');
+            keyEl.className = 'play-key';
+            keyEl.innerText = PLAY_KEYS[i] || '';
             const nameEl = document.createElement('div');
-            nameEl.className = `${onDefScreen ? 'text-sky-400' : 'text-amber-400'} font-bold text-xs md:text-sm`;
+            nameEl.className = `${onDefScreen ? 'text-sky-400' : (play.type === 'RUN' ? 'text-emerald-400' : 'text-amber-400')} font-bold text-[11px] md:text-xs leading-tight`;
             nameEl.innerText = play.name;
-            const descEl = document.createElement('div');
-            descEl.className = 'text-[10px] text-slate-300 mt-0.5';
-            descEl.innerText = play.type ? `${play.type} • ${play.desc}` : play.desc;
+            const tagEl = document.createElement('div');
+            tagEl.className = 'text-[9px] text-slate-400 leading-tight';
+            tagEl.innerText = play.type || (['BLITZ', 'FIRE', 'C0', 'CBLITZ', 'SBLITZ'].includes(play.id) ? 'PRESSURE' : (['RUN', 'GOAL'].includes(play.id) ? 'RUN D' : 'COVERAGE'));
+            btn.appendChild(keyEl);
             btn.appendChild(nameEl);
-            btn.appendChild(descEl);
+            btn.appendChild(tagEl);
             btn.addEventListener('click', () => doAction(onDefScreen ? 'defPlay' : 'offPlay', play.id));
             playcallGrid.appendChild(btn);
         });
@@ -3023,19 +3106,23 @@
         const opp = possession === 'HOME' ? scoreAway : scoreHome;
         const hurry = (quarter === 2 || quarter >= 4) && gameClock < 150 && off <= opp;
         const pick = (ids) => { const id = ids[Math.floor(Math.random() * ids.length)]; return OFFENSIVE_PLAYS.find(p => p.id === id); };
-        if (isTwoPointConversion) return pick(['SLANTS', 'MESH', 'IZ', 'SLANTS', 'SMASH', 'POWER']);
-        if (hurry) return pick(['SLANTS', 'CURLS', 'VERTS', 'MESH', 'CURLS', 'SMASH', 'YCROSS']);
-        if (quarter >= 4 && off > opp && gameClock < 300) return pick(['IZ', 'IZ', 'TOSS', 'SLANTS', 'POWER', 'POWER']);
-        if (togo <= 2) return pick(['IZ', 'IZ', 'TOSS', 'SLANTS', 'PA', 'POWER', 'POWER']);
-        if (down >= 3 && togo >= 7) return pick(['CURLS', 'MESH', 'MESH', 'SLANTS', 'CURLS', 'VERTS', 'SMASH', 'YCROSS', 'SCREEN', 'DRAW']);
-        if (lineOfScrimmage >= 88) return pick(['SLANTS', 'MESH', 'IZ', 'TOSS', 'CURLS', 'SMASH', 'POWER']);
-        return pick(['IZ', 'TOSS', 'IZ', 'SLANTS', 'CURLS', 'SLANTS', 'PA', 'MESH', 'IZ', 'TOSS', 'MESH', 'VERTS',
-            'POWER', 'DRAW', 'SMASH', 'SCREEN', 'YCROSS', 'POWER']); // ~44% runs, like the NFL
+        const qbInfo = sideTeam(possession).roster.qb;
+        const mobile = qbInfo && (SPEED_OVERRIDE[qbInfo.nm] || 8.5) >= 9.3;
+        if (isTwoPointConversion) return pick(['SLANTS', 'MESH', 'IZ', 'STICK', 'SMASH', 'POWER', 'QUICKOUT', 'SHALLOW']);
+        if (hurry) return pick(['SLANTS', 'CURLS', 'VERTS', 'MESH', 'SMASH', 'YCROSS', 'QUICKOUT', 'FLOOD', 'DAGGER', 'LEVELS', 'STICK']);
+        if (quarter >= 4 && off > opp && gameClock < 300) return pick(['IZ', 'IZ', 'TOSS', 'POWER', 'POWER', 'OZ', 'COUNTER', 'DIVE', 'SLANTS']);
+        if (togo <= 1 && lineOfScrimmage >= 50 && Math.random() < 0.35) return pick(['SNEAK']);           // QB sneak for a yard
+        if (togo <= 2) return pick(['IZ', 'IZ', 'POWER', 'POWER', 'DIVE', 'COUNTER', 'TOSS', 'SLANTS', 'PA', 'BOOT', 'STICK']);
+        if (down >= 3 && togo >= 7) return pick(['CURLS', 'MESH', 'SLANTS', 'VERTS', 'SMASH', 'YCROSS', 'SCREEN', 'DRAW', 'DAGGER', 'FLOOD', 'LEVELS', 'SHALLOW', 'WHEEL', ...(mobile ? ['QBDRAW'] : [])]);
+        if (lineOfScrimmage >= 88) return pick(['SLANTS', 'MESH', 'IZ', 'TOSS', 'SMASH', 'POWER', 'STICK', 'QUICKOUT', 'BOOT', 'DIVE', 'OZ', ...(mobile ? ['QBDRAW'] : [])]);
+        // Base mix on early downs: about half runs, so the whole game lands near the NFL's ~43% runs
+        if (Math.random() < (down === 1 ? 0.55 : 0.47)) return pick(['IZ', 'IZ', 'TOSS', 'POWER', 'OZ', 'OZ', 'COUNTER', 'DIVE', 'DRAW', ...(mobile ? ['QBDRAW'] : ['IZ'])]);
+        return pick(['SLANTS', 'CURLS', 'PA', 'MESH', 'VERTS', 'SMASH', 'SCREEN', 'YCROSS', 'LEVELS', 'DAGGER', 'STICK', 'SHALLOW', 'FLOOD', 'BOOT', 'BUBBLE', 'QUICKOUT', 'WHEEL', 'PA', 'BOOT']);
     }
     // The defensive coordinator: down and distance, field and clock, plus what this offense has shown today
     function aiPickDefPlay() {
         const togo = firstDownLine - lineOfScrimmage;
-        const w = { C1: 1.1, C2: 1, C3: 1.4, C4: 1, FIRE: 0.8, BLITZ: 0.8, SPY: 0.4, RUN: 0.9 };
+        const w = { C1: 1.1, C2: 1, C3: 1.4, C4: 1, FIRE: 0.8, BLITZ: 0.8, SPY: 0.4, RUN: 0.9, C0: 0.25, C2M: 0.6, C6: 0.6, ROBBER: 0.5, CBLITZ: 0.4, SBLITZ: 0.4, PREVENT: 0.01, GOAL: 0.01 };
         const mul = (o) => { for (const k in o) w[k] *= o[k]; };
         const off = possession === 'HOME' ? scoreHome : scoreAway;
         const opp = possession === 'HOME' ? scoreAway : scoreHome;
@@ -3043,10 +3130,13 @@
         const n = t.pass + t.run;
         const passRate = (t.pass + 5.6) / (n + 10);   // Starts from the NFL's ~56% and learns
         if (togo <= 2 || isTwoPointConversion) mul({ RUN: 3, C1: 1.5, BLITZ: 1.4, FIRE: 1.2, C4: 0.3, C2: 0.4 });
-        else if (down >= 3 && togo >= 7) mul({ C3: 1.3, C4: 1.6, C2: 1.3, FIRE: 1.4, SPY: 1.2, RUN: 0.08, C1: 0.8 });
+        if ((togo <= 2 && lineOfScrimmage >= 90) || isTwoPointConversion) mul({ GOAL: 150, C0: 2.5 });                 // Goal line
+        if (togo <= 2) mul({ C0: 1.8, SBLITZ: 1.4, C6: 0.4, C2M: 0.5, PREVENT: 0 });
+        else if (down >= 3 && togo >= 7) mul({ C3: 1.3, C4: 1.6, C2: 1.3, FIRE: 1.4, SPY: 1.2, RUN: 0.08, C1: 0.8, C2M: 1.8, C6: 1.4, CBLITZ: 1.3, ROBBER: 1.2 });
         else if (down === 1) mul({ RUN: 1.2 });
         if (lineOfScrimmage >= 80) mul({ C1: 1.6, BLITZ: 1.3, FIRE: 1.2, C4: 0.5, C2: 0.8 });          // Red zone: tight man, pressure
-        if ((quarter === 2 || quarter >= 4) && gameClock < 150 && off <= opp) mul({ C4: 2, C2: 1.6, BLITZ: 0.4, RUN: 0.15, C1: 0.6 }); // Two-minute drill: keep it in front
+        if ((quarter === 2 || quarter >= 4) && gameClock < 150 && off <= opp) mul({ C4: 2, C2: 1.6, BLITZ: 0.4, RUN: 0.15, C1: 0.6, C6: 1.6, C0: 0.2 }); // Two-minute drill: keep it in front
+        if (quarter >= 4 && gameClock < 60 && opp - off >= 4 && opp - off <= 8 && lineOfScrimmage < 70) mul({ PREVENT: 400 }); // Protect the lead: nothing deep
         if (quarter >= 4 && gameClock < 300 && off > opp) mul({ RUN: 2.2, C1: 1.3, C4: 0.5 });          // They're running the clock
         if (n >= 6) {
             if (passRate > 0.62) mul({ RUN: 0.5, C3: 1.2, C4: 1.25, FIRE: 1.3, SPY: 1.1, BLITZ: 1.15 });
@@ -3091,7 +3181,7 @@
             offense.push(makeEnt(info, info.pos, bx + i * 1.35, L - 0.6, ot, { role: 'OL', homeX: bx + i * 1.35, slot: i }));
         }
         // 5: QB, 6: RB
-        qb = makeEnt(o.qb, 'QB', bx, L - (gun ? 5 : 4.2), ot, { role: 'QB' });
+        qb = makeEnt(o.qb, 'QB', bx, L - (gun ? 5 : (play.form === 'UC' ? 1.1 : 4.2)), ot, { role: 'QB' });
         offense.push(qb);
         offense.push(makeEnt(o.rb, 'RB', gun ? bx + 1.5 : bx, L - (gun ? 5.2 : 6.0), ot, { role: 'RB' }));
         // 7: WR1 wide left, 8: TE inline right, 9: WR2 wide right, 10: SLOT left
@@ -3119,8 +3209,8 @@
         const L = lineOfScrimmage;
         const bx = ballSpotX;
         const call = selectedDefPlay.id;
-        const press = ['C1', 'C2', 'BLITZ', 'SPY', 'RUN'].includes(call);
-        const lbDepth = call === 'RUN' ? 3.6 : (call === 'BLITZ' ? 2.6 : 4.6);
+        const press = ['C1', 'C2', 'BLITZ', 'SPY', 'RUN', 'C0', 'C2M', 'ROBBER', 'SBLITZ', 'GOAL'].includes(call);
+        const lbDepth = call === 'RUN' || call === 'GOAL' ? 3.4 : (['BLITZ', 'C0'].includes(call) ? 2.6 : (call === 'PREVENT' ? 7 : 4.6));
         const wr1 = offense[7], te = offense[8], wr2 = offense[9], slot = offense[10];
 
         defenders = [];
@@ -3129,7 +3219,7 @@
         d.dl.forEach((info, i) => defenders.push(makeEnt(info, info.pos, dlX[i], L + 0.9, dt, { role: 'RUSH' })));
         // 4-6: WLB, MLB, SLB
         const lbX = [bx - 4.2, bx, bx + 4.2];
-        const base = call === 'RUN' && d.sam && !d.lb.some(l => l.pk === d.sam.pk);  // Base personnel: the SAM replaces the nickel safety
+        const base = (call === 'RUN' || call === 'GOAL') && d.sam && !d.lb.some(l => l.pk === d.sam.pk);  // Base personnel: the SAM replaces the nickel safety
         d.lb.forEach((info, i) => {
             const who = i === 2 && base ? d.sam : info;
             defenders.push(makeEnt(who, who.pos, lbX[i], L + lbDepth + (who.pos === 'SS' ? 1.8 : 0), dt, { role: 'ZONE' }));
@@ -3196,6 +3286,65 @@
             zone(ncb, bx - 7, L + 7); // Nickel replaces the blitzing linebacker in the hook/curl
             zone(mlb, bx, L + 9);
             zone(slb, W - 9, L + 5);
+        } else if (call === 'C0') {
+            // Cover 0: seven come, everyone else is in man with no help behind
+            wlb.role = 'RUSH';
+            mlb.role = 'RUSH';
+            slb.role = 'RUSH';
+            man(fs, 8);
+        } else if (call === 'C2M') {
+            // 2-man under: trail man coverage underneath, two safeties split the deep field
+            man(wlb, 6);
+            man(mlb, 8);
+            zone(fs, W / 4, L + 15);
+            zone(slb, W * 3 / 4, L + 15);
+        } else if (call === 'C6') {
+            // Cover 6: quarters to the left, Cover 2 to the right
+            zone(cb1, W / 8 + 1, L + 14);
+            zone(fs, W * 3 / 8, L + 14);
+            zone(cb2, W - 7, L + 4);
+            zone(slb, W * 3 / 4, L + 15);
+            zone(ncb, bx - 7, L + 6);
+            zone(wlb, bx, L + 8);
+            zone(mlb, bx + 7, L + 6);
+        } else if (call === 'ROBBER') {
+            // Cover 1 robber: man outside, a safety lurks in the middle to jump crossers
+            man(wlb, 6);
+            man(mlb, 8);
+            zone(slb, bx, L + 9);
+        } else if (call === 'CBLITZ') {
+            // Nickel blitz off the edge; the safety rotates down and it's three deep behind it
+            ncb.role = 'RUSH';
+            zone(cb1, W / 5, L + 16);
+            zone(cb2, W * 4 / 5, L + 16);
+            zone(fs, MID, L + 17);
+            zone(slb, 9, L + 5);
+            zone(wlb, bx - 6, L + 10);
+            zone(mlb, bx + 6, L + 10);
+        } else if (call === 'SBLITZ') {
+            // Strong safety off the edge, man behind with one deep
+            slb.role = 'RUSH';
+            man(wlb, 6);
+            man(mlb, 8);
+        } else if (call === 'PREVENT') {
+            // Three rush, an end drops, everyone keeps it in front
+            const dropper = defenders[3];
+            dropper.role = 'ZONE';
+            dropper.zx = clamp(bx + 8, 3, W - 3);
+            dropper.zy = L + 6;
+            zone(cb1, W / 8 + 1, L + 22);
+            zone(fs, W * 3 / 8, L + 24);
+            zone(slb, W * 5 / 8, L + 24);
+            zone(cb2, W * 7 / 8 - 1, L + 22);
+            zone(ncb, bx - 9, L + 11);
+            zone(wlb, bx - 3, L + 12);
+            zone(mlb, bx + 5, L + 12);
+        } else if (call === 'GOAL') {
+            // Goal line: fill every gap, man up on everyone
+            wlb.role = 'FILL';
+            mlb.role = 'FILL';
+            man(slb, 8);
+            man(fs, 6);
         }
         for (const e of defenders) {
             e.cov = e.role === 'MAN' ? `M${e.man}` : (e.role === 'ZONE' ? `Z${e.zx.toFixed(1)},${e.zy.toFixed(1)}` : e.role[0]);
@@ -3353,7 +3502,9 @@
         qb.role = 'QB';
         qb.dropY = qb.y - (play.drop || 0);
         const rbE = offense[6];
-        if (play.type === 'RUN') {
+        if (play.qbRun) {
+            rbE.role = 'OL_RUN'; // The back leads the way for the quarterback
+        } else if (play.type === 'RUN') {
             rbE.role = 'RB_PATH';
             rbE.path = rbPathPoints(play, bx, L);
             rbE.pi = 0;
@@ -3365,7 +3516,7 @@
         RECV.forEach((idx, k) => {
             const r = offense[idx];
             const routeName = play.routes[k];
-            if (k === 4 && play.type === 'RUN') return;
+            if (k === 4 && play.type === 'RUN') return; // The back runs it (or blocks on a QB run)
             if (k === 4 && play.playAction) {
                 r.route = { pts: routePoints(r, routeName, bx), end: R[routeName].end, delay: play.playAction + 6 };
                 r.wp = 0;
@@ -3633,7 +3784,7 @@
         // Juke a defender closing in front
         if (c.jukeCd <= 0) {
             const n = nearestOpp(c, defenders, (d) => !d.eng && d.y > c.y - 0.5);
-            if (n.ent && n.d < 1.9 && Math.random() < 0.06) jukeMove(c, Math.sign(c.x - n.ent.x) || 1);
+            if (n.ent && n.d < 1.9 && Math.random() < 0.06 * clamp(1 + ((c.rf || 0) - 0.3) * 0.6, 0.6, 1.3)) jukeMove(c, Math.sign(c.x - n.ent.x) || 1);
         }
     }
 
@@ -3674,8 +3825,11 @@
         const s = speedOf(c);
         c.vx = side * Math.max(0.09, s * 0.75);
         c.vy = Math.max(0.02, c.vy * 0.55);
-        c.elusive = 24;
-        c.jukeCd = 75;
+        // Shiftier backs make the move count longer and get it back sooner
+        // (centered on a typical starter, so only the special ones gain)
+        const g = runnerGrade(c) - 0.3;
+        c.elusive = Math.round(24 * clamp(1 + g * 0.35, 0.75, 1.15));
+        c.jukeCd = Math.round(75 * clamp(1 - g * 0.2, 0.9, 1.2));
         c.auto = false;
         fx('juke');
     }
@@ -3698,14 +3852,19 @@
             q.face = 0;
             return;
         }
+        // Bootleg: roll out to the side after the fake and throw on the move
+        if (play.boot) { seek(q, clamp(ballSpotX + play.boot * 8, 4, W - 4), q.dropY + 1.5, 0.95, 1.0); return; }
         seek(q, ballSpotX, q.dropY, 0.75, 1.0);
     }
 
     // CPU quarterback: drop, read the progression on time, throw on rhythm or under pressure
     // Reads go short to deep (shot plays excepted) and start when the first route breaks
     const PROGRESSION = { SLANTS: [0, 2, 3, 1, 4], CURLS: [0, 2, 3, 4, 1], VERTS: [1, 3, 4, 0, 2], PA: [2, 1, 0, 3, 4], MESH: [3, 1, 0, 4, 2],
-        SMASH: [0, 2, 1, 3, 4], SCREEN: [4, 0, 2, 3, 1], YCROSS: [2, 1, 3, 0, 4] };
-    const READ_AT = { SLANTS: 56, CURLS: 84, VERTS: 112, PA: 120, MESH: 76, SMASH: 70, SCREEN: 58, YCROSS: 100 }; // NFL rhythm: ~0.9s quick game to ~2s deep
+        SMASH: [0, 2, 1, 3, 4], SCREEN: [4, 0, 2, 3, 1], YCROSS: [2, 1, 3, 0, 4],
+        LEVELS: [3, 0, 1, 4, 2], DAGGER: [0, 3, 1, 4, 2], STICK: [1, 3, 4, 2, 0], SHALLOW: [3, 0, 1, 4, 2], FLOOD: [3, 4, 0, 1, 2],
+        WHEEL: [4, 3, 0, 1, 2], BOOT: [1, 3, 2, 0, 4], BUBBLE: [3, 4, 0, 1, 2], QUICKOUT: [0, 2, 3, 1, 4] };
+    const READ_AT = { SLANTS: 56, CURLS: 84, VERTS: 112, PA: 120, MESH: 76, SMASH: 70, SCREEN: 58, YCROSS: 100,
+        LEVELS: 80, DAGGER: 92, STICK: 60, SHALLOW: 80, FLOOD: 98, WHEEL: 98, BOOT: 104, BUBBLE: 26, QUICKOUT: 50 }; // NFL rhythm: ~0.9s quick game to ~2s deep
     // A quarterback only feels pressure he can see: rushers in front of him, or right on top of him.
     // Blind-side blitzes (from any position) get home.
     function qbSees(q, d) {
@@ -3736,7 +3895,7 @@
             // Feeling pressure takes a beat (~0.25s), long enough for a rusher to close and finish
             if (pressure.d < 2.7 && playFrame > 26 && Math.random() < 0.06) aiQBDecide(true);
             // Pocket presence: now and then he feels the blind-side rusher too
-            else if (playFrame > 26 && Math.random() < 0.012 + 0.015 * qbMobility(q) && nearestOpp(q, defenders, (d) => !d.eng).d < 1.8) aiQBDecide(true);
+            else if (playFrame > 26 && Math.random() < (0.012 + 0.015 * qbMobility(q)) * clamp(1 + ((q.rf || 0) - 0.3) * 0.5, 0.6, 1.25) && nearestOpp(q, defenders, (d) => !d.eng).d < 1.8) aiQBDecide(true);
             // An unblocked blitzer coming at him in plain sight: get the ball out to the hot route
             else if (pressure.d < 3 && pressure.ent && pressure.ent.y < lineOfScrimmage + 0.5 && playFrame > 24 && Math.random() < 0.035) aiQBDecide(true);
             return;
@@ -4308,7 +4467,14 @@
         const inpO = humanOff ? offenseInput() : null;
 
         // --- Run play mesh / pitch ---
-        if (!isReturn && play.type === 'RUN' && player === qb && ball.state === 'held') {
+        if (!isReturn && play.qbRun && player === qb && ball.state === 'held' && !qb.scramble && playFrame >= (play.handoffAt || 4)) {
+            qb.scramble = true;
+            qb.path = [[ballSpotX + (play.qbLane || 0), lineOfScrimmage + 3]];
+            qb.pi = 0;
+            playLog.type = 'run';
+            defenseReadsScramble();
+        }
+        if (!isReturn && play.type === 'RUN' && !play.qbRun && player === qb && ball.state === 'held') {
             const rbE = offense[6];
             const meshReady = play.handoffAt ? playFrame >= play.handoffAt : (playFrame >= 12 && dist(rbE, qb) < 1.4);
             if (meshReady || playFrame > 70) doHandoff(rbE);
@@ -4320,7 +4486,7 @@
             if (e.jukeCd > 0) e.jukeCd--;
             if (e.elusive > 0) e.elusive--;
             if (e === player && ball.state === 'held') {
-                if (e === qb && !hasCrossedLOS && !isReturn && play.type === 'RUN') { seek(e, ballSpotX + 0.2, qb.dropY - 0.3, 0.4); }
+                if (e === qb && !hasCrossedLOS && !isReturn && play.type === 'RUN' && !qb.scramble) { if (play.qbRun) qbAutoDrop(e); else seek(e, ballSpotX + 0.2, qb.dropY - 0.3, 0.4); }
                 else if (humanOff) humanCarrier(e, inpO);
                 else if (e === qb && !hasCrossedLOS && !isReturn) aiQB(e);
                 else aiCarrier(e);
@@ -4544,8 +4710,10 @@
                         // Sit in the throwing lane: between the quarterback and the receiver, ahead of where he's going
                         // Read where he'll be when a throw would get there (~0.4s), and keep your depth: hook
                         // defenders wall off the middle at 8-12 yards instead of chasing routes up to the line
-                        const ax = bestR.x + bestR.vx * 24;
-                        const ay = bestR.y + bestR.vy * 24;
+                        // Better zone defenders read the route sooner and sit further ahead of it
+                        const lead = 24 * clamp(1 + ((d.rf || 0) - 0.2) * 0.3, 0.8, 1.2);
+                        const ax = bestR.x + bestR.vx * lead;
+                        const ay = bestR.y + bestR.vy * lead;
                         const qx = qb ? qb.x : MID;
                         const qy = qb ? qb.y : L - 5;
                         const dl = Math.hypot(ax - qx, ay - qy) || 1;
@@ -8235,7 +8403,7 @@
         if (gameMode === 'CPU') help = `CPU VS CPU • ${userTeam.abbr} vs ${aiTeam.abbr} • [X] SPEED ${simSpeed}X • MENU TO LEAVE`;
         else if (localOnDefense()) help = 'DEFENSE: TAP A DEFENDER / [Q] NEAREST TO BALL • ARROWS / DRAG TO MOVE • RUN INTO THE CARRIER TO TACKLE • [F] DIVE';
         else if (canThrow) help = 'QB: [A/S/D/W/E] THROW TO RECEIVER • [SPACE] MOST OPEN • ARROWS / DRAG TO ESCAPE • [F] SPIN';
-        else if (gameState === 'PRE_SNAP') help = 'PICK A PLAY • [SPACE] SNAP • [T] TIMEOUT';
+        else if (gameState === 'PRE_SNAP') help = 'PICK A PLAY (CLICK OR ITS KEY: 1-0, R, Y, U...) • [SPACE] SNAP • [T] TIMEOUT';
         else help = 'ARROWS / DRAG TO RUN • [SPACE]/[F] JUKE • NO INPUT = AUTO-RUN';
         if (online && net.role) {
             const myTeam = mySide === 'HOME' ? userTeam : aiTeam;
