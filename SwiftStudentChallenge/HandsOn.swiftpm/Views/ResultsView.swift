@@ -111,6 +111,8 @@ private struct TipCard: View {
         .task(id: results.count) {
             tip = nil
             let written = await TipWriter.write(for: results)
+            // The results screen may have closed while the tip was being written.
+            guard !Task.isCancelled else { return }
             tip = written
             model.say(written.title + ". " + written.text, interrupt: false)
         }
