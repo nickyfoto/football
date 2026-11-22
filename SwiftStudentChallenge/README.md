@@ -9,6 +9,8 @@ There are two app playgrounds here. Both are offline, need no sign-in, and take 
 
 Open either one in Swift Playground (iPad or Mac) or Xcode, and press Run.
 
+> **Starting from scratch yourself?** Follow [`BUILD_IT_YOURSELF.md`](BUILD_IT_YOURSELF.md), a week-by-week plan to build your own entry from a blank project before the February 2027 deadline. The apps here are reference examples only.
+
 ---
 
 ## 1. What last year's winners did (Swift Student Challenge 2026)
