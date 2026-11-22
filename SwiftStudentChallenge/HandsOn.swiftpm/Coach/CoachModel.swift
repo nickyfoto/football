@@ -53,7 +53,8 @@ final class CoachModel: ObservableObject {
     @Published private(set) var stage: Stage = .welcome
     @Published var inputMode: InputMode = .motion
     @Published var beatOn = true {
-        didSet { if isRunning { updateBeat() } }
+        // Applies during the countdown too, not just once practice is running.
+        didSet { if stage == .practice { updateBeat() } }
     }
 
     // Live practice state

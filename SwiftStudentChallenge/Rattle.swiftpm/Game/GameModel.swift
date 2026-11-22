@@ -103,6 +103,8 @@ final class GameModel: ObservableObject {
     // MARK: - Navigation
 
     func begin() {
+        // A new session always starts from zero, however we got back here.
+        trapTries = 0; trapped = 0; dodged = 0; goals = 0
         audio.start()
         bakeVoices()
         audio.playInterface(whistle)
