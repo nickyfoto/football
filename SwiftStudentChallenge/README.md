@@ -1,8 +1,13 @@
-# Rattle: a Swift Student Challenge entry
+# Swift Student Challenge entries
 
-**Rattle** teaches you blind football in about three minutes. Blind football is the Paralympic five-a-side game for blind and partially sighted players. You play it the way they do, by ear: you find a rattling ball in 3D sound, dodge defenders who must shout *“Voy!”*, and shoot toward a guide knocking on the goalposts.
+There are two app playgrounds here. Both are offline, need no sign-in, and take about three minutes.
 
-The app playground is in [`Rattle.swiftpm`](Rattle.swiftpm). Open it in Swift Playground on iPad or Mac, or in Xcode, and press Run.
+| | App | What it is |
+|---|---|---|
+| ⭐ **Recommended** | [`HandsOn.swiftpm`](HandsOn.swiftpm) | Learn hands-only CPR, then practise it. Your phone's motion sensors measure how fast and how deep you push, and it coaches you live by voice, beat and vibration. |
+| Alternative | [`Rattle.swiftpm`](Rattle.swiftpm) | Learn blind football by ear, with 3D spatial audio. |
+
+Open either one in Swift Playground (iPad or Mac) or Xcode, and press Run.
 
 ---
 
@@ -28,7 +33,35 @@ Apple announced 350 winners from 37 countries and regions in May 2026, and invit
 
 ---
 
-## 2. Why Rattle fits that pattern
+## 2. HandsOn (recommended): why it should win
+
+**The idea:** most people have never practised CPR. When someone collapses, bystanders freeze. HandsOn teaches the steps in about a minute. Then you **practise with your own hands for 30 seconds**: hold your phone and push into a cushion, and the phone measures every compression. It coaches you toward the real guideline numbers (adult hands-only CPR, AHA 2020 and ERC 2021): **100–120 compressions a minute, 5–6 cm deep, with no pauses.**
+
+The three-minute flow: welcome, four quick emergency steps (safe? responsive? breathing? call for help and an AED), hand placement, the 30-second live practice, your results with a chart, and three takeaways.
+
+| What winners had | How HandsOn does it |
+|---|---|
+| Social impact | CPR is the single most useful thing a bystander can learn. Starting it right away can double or triple the chance of survival. Everyone in three minutes learns a skill that can save a life |
+| Quick to try, no sign-in | No account, no network, no assets. A judge is practising within about a minute |
+| Deep use of Apple frameworks | **Core Motion**: compressions are measured from gravity-removed acceleration projected onto the vertical, so it works however the phone tilts. **AVAudioEngine**: a 110 bpm metronome synthesised in code that never drifts. **Core Haptics**: a looped beat you can feel. **AVSpeechSynthesizer**: live voice coaching. **Swift Charts**: your rhythm over time against the target band. **SwiftUI** throughout |
+| Real signal processing | `Sensing/CompressionDetector.swift` band-passes the signal, picks peaks with hysteresis (each push ends in a sharp upward deceleration spike), and double-integrates with leaky integrators to estimate depth. On synthetic test signals with noise and sensor bias it measures **rate within about 1% and depth within about 5%**, and reports no pushes when the phone is held still |
+| Accessibility at the core | You don't need to see the screen during practice, because voice and vibration do the coaching. It supports VoiceOver: prompts become announcements, the tap pad uses direct touch, and charts get Audio Graphs automatically. Deaf and hard-of-hearing users get a haptic beat plus on-screen prompts. It respects Reduce Motion. A **tap mode** works on any device, including Mac, and the keyboard space bar also counts as a push |
+| Honest and responsible | It states clearly that it is a practice tool, not a certified course or medical device. It never dials a real number. It uses guideline-accurate steps (for example, "gasping is not normal breathing" and "check breathing for no more than 10 s") |
+
+### Making HandsOn yours
+
+- **Your story:** set `personalNote` in `Views/IntroViews.swift`. Have you ever seen someone collapse, taken a first-aid class, or had a family member with a heart condition? Use something **true**.
+- **Validate it for real:** test on an iPhone with a cushion, and compare the depth estimate against a ruler held next to the cushion. If you can, ask a first-aid instructor (for example, from your school or a local Red Cross or St John chapter) to try it, and quote their feedback in your submission.
+- **Ideas for extra polish:**
+  - Show the local emergency number for the device's region (112, 911, 999…).
+  - An AED walkthrough.
+  - Apple Watch wrist detection.
+  - Localisation.
+  - On-device **Foundation Models** to turn your session data into a personalised tip. This is the AI angle Apple highlighted, but it must work offline.
+
+---
+
+## 3. Rattle (alternative): why it fits
 
 | What winners had | How Rattle does it |
 |---|---|
@@ -48,18 +81,14 @@ Apple announced 350 winners from 37 countries and regions in May 2026, and invit
 
 ---
 
-## 3. What YOU still need to do (important)
+## 4. What YOU still need to do (for either app)
 
 These steps make the difference between a good entry and a winning one. Apple judges *you*, not just the code.
 
-1. **Write your own story.** Open `Views/StoryView.swift` and set `personalNote` to one or two **true** sentences about why you built this. Did you play football, know a visually impaired person, watch the Paralympics, or wonder what playing blind would feel like? Judges reward authenticity. Don't invent a story. If you have a stronger personal connection to a different problem, use these patterns on *that* idea instead.
-2. **Build and test on a real iPad or iPhone with headphones.** This code was written in a Linux container. It passes a Swift syntax check, but it has **not been compiled against the iOS SDK or run on a device**. Expect to fix a few small compile issues in Xcode or Swift Playground. Then tune by ear: how loud the rattle is, how fast defenders approach, and the 15° trap window.
-3. **Test it with your eyes closed and with VoiceOver on.** Ideally, ask a blind or low-vision player, or a local blind-sport club, to try it. Add one line about their feedback to your submission. That is exactly the kind of community impact the winners showed.
-4. **Make it yours.** Ideas:
-   - **AirPods head tracking** (`CMHeadphoneMotionManager`) so you turn your head, not the device. This needs a motion-usage permission string.
-   - A custom app icon instead of the placeholder.
-   - A fourth drill: passing to a teammate who claps.
-   - Localisation, which Pitch Coach used to great effect.
+1. **Write your own story.** Set `personalNote` (HandsOn: `Views/IntroViews.swift`; Rattle: `Views/StoryView.swift`) to one or two **true** sentences about why you built this. Did you play football, know a visually impaired person, watch the Paralympics, or wonder what playing blind would feel like? Judges reward authenticity. Don't invent a story. If you have a stronger personal connection to a different problem, use these patterns on *that* idea instead.
+2. **Build and test on a real device** (an iPhone for HandsOn's cushion mode; headphones for Rattle). This code was written in a Linux container. It passes a Swift syntax check, but it has **not been compiled against the iOS SDK or run on a device**. Expect to fix a few small compile issues in Xcode or Swift Playground. Then tune the feel: for HandsOn, the detection thresholds and how often the coach speaks; for Rattle, volumes and timing.
+3. **Test it with VoiceOver on, and with real users.** For HandsOn, ask a first-aid instructor. For Rattle, ask a blind or low-vision player. Add one line about their feedback to your submission. That is exactly the kind of community impact the winners showed.
+4. **Make it yours.** Add a custom app icon instead of the placeholder, and at least one feature you thought of yourself.
 5. **Time it.** The full run should take three minutes or less. Use the skip buttons to check every path.
 6. **Credit your tools.** Apple allows AI assistance and open-source code, with credit and an explanation. Be honest about how you used AI. The winners were.
 
@@ -81,7 +110,7 @@ Always re-check <https://developer.apple.com/swift-student-challenge/eligibility
 
 ---
 
-## Project layout
+## Project layout (Rattle)
 
 ```
 Rattle.swiftpm/
@@ -96,4 +125,19 @@ Rattle.swiftpm/
 │   ├── GameModel.swift      drills, rules, motion turning, timing
 │   └── Haptics.swift        Core Haptics "facing the sound" hum
 └── Views/                   SwiftUI screens: welcome, story, drill intro, pitch (radar/orb), finale
+```
+
+## Project layout (HandsOn)
+
+```
+HandsOn.swiftpm/
+├── Package.swift               iOS 17+ app playground (iPhone and iPad; tap mode on Mac)
+├── MyApp.swift
+├── Sensing/
+│   ├── CompressionDetector.swift   pure-Swift rate and depth detection, plus guideline targets
+│   └── MotionSensor.swift          Core Motion → vertical acceleration
+├── Coach/
+│   ├── CoachModel.swift            stages, practice session, live coaching, scoring
+│   └── Feedback.swift              metronome (AVAudioEngine), voice coach, haptics
+└── Views/                          welcome, emergency steps, hands, mode, practice, results (Swift Charts), finale
 ```
