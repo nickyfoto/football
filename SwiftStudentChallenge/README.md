@@ -44,6 +44,7 @@ The three-minute flow: welcome, four quick emergency steps (safe? responsive? br
 | Social impact | CPR is the single most useful thing a bystander can learn. Starting it right away can double or triple the chance of survival. Everyone in three minutes learns a skill that can save a life |
 | Quick to try, no sign-in | No account, no network, no assets. A judge is practising within about a minute |
 | Deep use of Apple frameworks | **Core Motion**: compressions are measured from gravity-removed acceleration projected onto the vertical, so it works however the phone tilts. **AVAudioEngine**: a 110 bpm metronome synthesised in code that never drifts. **Core Haptics**: a looped beat you can feel. **AVSpeechSynthesizer**: live voice coaching. **Swift Charts**: your rhythm over time against the target band. **SwiftUI** throughout |
+| On-device AI (Apple Intelligence) | After practice, Apple's **Foundation Models** framework writes a personal coaching tip from your numbers, on-device, private and offline. It uses **guided generation** (`@Generable`), so the model fills in a fixed title-and-tip structure. Its instructions keep it to CPR technique only, with no diagnosis and no invented numbers. If Apple Intelligence isn't available (older device, turned off, iOS before 26, Mac), a rule-based tip appears instead, so the app works everywhere. See `Coach/PersonalTip.swift` |
 | Real signal processing | `Sensing/CompressionDetector.swift` band-passes the signal, picks peaks with hysteresis (each push ends in a sharp upward deceleration spike), and double-integrates with leaky integrators to estimate depth. On synthetic test signals with noise and sensor bias it measures **rate within about 1% and depth within about 5%**, and reports no pushes when the phone is held still |
 | Accessibility at the core | You don't need to see the screen during practice, because voice and vibration do the coaching. It supports VoiceOver: prompts become announcements, the tap pad uses direct touch, and charts get Audio Graphs automatically. Deaf and hard-of-hearing users get a haptic beat plus on-screen prompts. It respects Reduce Motion. A **tap mode** works on any device, including Mac, and the keyboard space bar also counts as a push |
 | Honest and responsible | It states clearly that it is a practice tool, not a certified course or medical device. It never dials a real number. It uses guideline-accurate steps (for example, "gasping is not normal breathing" and "check breathing for no more than 10 s") |
@@ -57,7 +58,7 @@ The three-minute flow: welcome, four quick emergency steps (safe? responsive? br
   - An AED walkthrough.
   - Apple Watch wrist detection.
   - Localisation.
-  - On-device **Foundation Models** to turn your session data into a personalised tip. This is the AI angle Apple highlighted, but it must work offline.
+  - Have Apple Intelligence also compare two practice runs ("your rate got steadier").
 
 ---
 
@@ -138,6 +139,7 @@ HandsOn.swiftpm/
 │   └── MotionSensor.swift          Core Motion → vertical acceleration
 ├── Coach/
 │   ├── CoachModel.swift            stages, practice session, live coaching, scoring
+│   ├── PersonalTip.swift           Apple Intelligence (Foundation Models) tip + rule-based fallback
 │   └── Feedback.swift              metronome (AVAudioEngine), voice coach, haptics
 └── Views/                          welcome, emergency steps, hands, mode, practice, results (Swift Charts), finale
 ```

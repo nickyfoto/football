@@ -147,8 +147,8 @@ final class CoachModel: ObservableObject {
         stage = .welcome
     }
 
-    func say(_ text: String) {
-        coach.say(text)
+    func say(_ text: String, interrupt: Bool = true) {
+        coach.say(text, interrupt: interrupt)
     }
 
     // MARK: - Practice
@@ -282,7 +282,7 @@ final class CoachModel: ObservableObject {
     }
 }
 
-struct PracticeResults {
+struct PracticeResults: Sendable {
     let compressions: [Compression]
     let duration: Double
     let measuredDepth: Bool

@@ -49,11 +49,8 @@ struct ResultsView: View {
                         .frame(maxWidth: 600)
                 }
 
-                Text(advice(for: r))
-                    .font(.callout)
-                    .padding(18)
-                    .frame(maxWidth: 600, alignment: .leading)
-                    .background(Theme.card, in: RoundedRectangle(cornerRadius: 18))
+                TipCard(results: r)
+                    .frame(maxWidth: 600)
 
                 HStack(spacing: 14) {
                     Button("Try again") { model.chooseMode() }
@@ -68,21 +65,55 @@ struct ResultsView: View {
         }
     }
 
-    private func advice(for r: PracticeResults) -> String {
-        if r.count < 5 {
-            return "We didn't detect many compressions. In cushion mode, push firmly straight down with the phone flat in your hands. Or try tap mode."
+}
+
+/// Personal tip, written on-device by Apple Intelligence when available.
+private struct TipCard: View {
+    @EnvironmentObject private var model: CoachModel
+    let results: PracticeResults
+    @State private var tip: PersonalTip?
+
+    private var symbol: String {
+        guard let tip else { return "sparkles" }
+        return tip.byAppleIntelligence ? "apple.intelligence" : "lightbulb.fill"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: symbol)
+                    .accessibilityHidden(true)
+                Text(tip?.byAppleIntelligence == true ? "Your tip · Apple Intelligence, on-device" : "Your tip")
+            }
+            .font(.caption.weight(.bold))
+            .foregroundStyle(Theme.heart)
+
+            if let tip {
+                Text(tip.title)
+                    .font(.headline)
+                Text(tip.text)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("Writing a tip from your numbers…")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
-        var tips: [String] = []
-        if let rate = r.averageRate {
-            if rate < Guideline.rate.lowerBound { tips.append("Speed up — aim for about two pushes a second.") }
-            if rate > Guideline.rate.upperBound { tips.append("Slow down slightly — too fast and the heart can't refill between pushes.") }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: 18))
+        .accessibilityElement(children: .combine)
+        .animation(.easeInOut, value: tip)
+        .task(id: results.count) {
+            tip = nil
+            let written = await TipWriter.write(for: results)
+            tip = written
+            model.say(written.title + ". " + written.text, interrupt: false)
         }
-        if let depth = r.averageDepth {
-            if depth < Guideline.depth.lowerBound { tips.append("Push harder: lock your elbows and use your body weight, not your arms.") }
-            if depth > Guideline.depth.upperBound + 0.5 { tips.append("Ease off a little — 5 to 6 cm is enough.") }
-        }
-        if r.longestPause > 2 { tips.append("Keep going without stopping — every pause lets blood pressure fall.") }
-        return tips.isEmpty ? "Excellent. That's the rhythm that keeps blood flowing to the brain." : tips.joined(separator: " ")
     }
 }
 

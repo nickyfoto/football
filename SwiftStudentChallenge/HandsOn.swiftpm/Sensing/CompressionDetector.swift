@@ -1,7 +1,7 @@
 import Foundation
 
 /// One detected chest compression.
-struct Compression: Identifiable, Equatable {
+struct Compression: Identifiable, Equatable, Sendable {
     let id: Int
     /// Seconds since the practice started.
     let time: Double
