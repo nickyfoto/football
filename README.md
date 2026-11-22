@@ -18,7 +18,7 @@ Live site:
 - `football_v7.html`: Blitz Breaker 2026 (NFL rosters, play-calling, 3D camera; 1P vs AI, 2P coach mode and online play)
 - `football_v8.html`: latest version, Blitz Breaker 2026 Sim Edition (all 32 NFL teams, realistic football simulation, see below)
 - `index.html`: GitHub Pages entry point that redirects to the latest version
-- `SwiftStudentChallenge/`: Swift Student Challenge app playgrounds — **HandsOn** (CPR coach, recommended) and **Rattle** (blind football by ear). See its README.
+- `SwiftStudentChallenge/`: Swift Student Challenge app playgrounds — **HandsOn** (CPR coach, recommended) and **Rattle** (blind football by ear). See its README; draft submission answers are in `SwiftStudentChallenge/SUBMISSION_ANSWERS.md`.
 
 ## What's realistic in v8
 
