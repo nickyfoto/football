@@ -123,6 +123,8 @@ final class GameModel: ObservableObject {
         narrator.stop()
         stage = .play(drill)
         round = 0
+        // Keep the screen awake while playing — players turn the device without touching it.
+        UIApplication.shared.isIdleTimerDisabled = true
         updateMotion()
         audio.playInterface(whistle)
         after(0.8) { [weak self] in self?.nextRound(drill) }
