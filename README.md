@@ -66,3 +66,4 @@ The site is published in two places:
 
 - **GitHub Pages** publishes the `main` branch root automatically.
 - **Cloudflare** serves it at football.macworks.dev as an assets-only Worker named `football` (`cloudflare.config.ts`). Workers Builds deploys every push to `main` automatically: it runs `npm run build`, which copies the `*.html` pages into `dist/` and adds the Cloudflare Web Analytics snippet to each game page (see `scripts/build-site.mjs`), then `npx cf deploy dist`. Build logs are under the Worker's **Deployments** tab in the Cloudflare dashboard. To deploy by hand instead, run `npm install` once, sign in with `npx cf auth login`, then run `npm run deploy`. Visitor numbers are in the Cloudflare dashboard under Web Analytics.
+- **Not published:** `SwiftStudentChallenge/` stays off both sites. The Cloudflare build only copies top-level `*.html` files, and `_config.yml` excludes the folder from GitHub Pages.

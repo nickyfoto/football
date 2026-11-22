@@ -2,6 +2,8 @@
 // Copies every *.html page and adds the Cloudflare Web Analytics beacon to
 // each game page. index.html only redirects, so it is left without one.
 // The source files are not changed, so the GitHub Pages copy is not tracked.
+// Only top-level *.html files are copied, so subfolders such as
+// SwiftStudentChallenge/ are never published here.
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
 // Site token from Cloudflare dashboard > Web Analytics > football.macworks.dev.
