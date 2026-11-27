@@ -1246,6 +1246,52 @@
         ];
     }
 
+    // A fierce bird of prey, head-on: ruffled neck, angry brow, hooked beak. Options tint each species.
+    function raptorHead(o) {
+        const L = [];
+        if (o.crest) L.push(['M66 46 L54 0 L84 30 L100 -6 L116 30 L146 0 L134 46 Z', o.crest]);
+        L.push(['M34 96 L20 130 L42 124 L38 154 L60 140 L64 172 L82 152 L100 180 L118 152 L136 172 L140 140 L162 154 L158 124 L180 130 L166 96 Z', o.ruff]);
+        L.push(['M38 92 C36 50 66 24 100 24 C134 24 164 50 162 92 C162 118 150 136 134 148 L66 148 C50 136 38 118 38 92 Z', o.head]);
+        if (o.cap) L.push(['M42 80 C46 46 72 26 100 26 C128 26 154 46 158 80 C140 66 120 60 100 62 C80 60 60 66 42 80 Z', o.cap]);
+        if (o.cheek) L.push(['M44 104 C54 100 66 102 70 108 C70 122 66 132 58 136 C48 128 44 116 44 104 Z', o.cheek], ['M156 104 C146 100 134 102 130 108 C130 122 134 132 142 136 C152 128 156 116 156 104 Z', o.cheek]);
+        if (o.malar) L.push(['M66 96 C64 112 68 128 78 140 L86 136 C80 122 78 108 80 96 Z', o.malar], ['M134 96 C136 112 132 128 122 140 L114 136 C120 122 122 108 120 96 Z', o.malar]);
+        if (o.mask) L.push(['M36 80 C54 74 80 76 96 92 L92 100 C76 92 56 92 38 98 Z', o.mask], ['M164 80 C146 74 120 76 104 92 L108 100 C124 92 144 92 162 98 Z', o.mask]);
+        if (o.face) L.push(['M66 84 C80 76 120 76 134 84 L130 126 C118 140 82 140 70 126 Z', o.face]);
+        if (o.sheen) L.push(['M56 50 C70 38 88 34 100 34', null, o.sheen], ['M144 50 C130 38 112 34 100 34', null, o.sheen]);
+        L.push(['M54 88 C64 76 82 76 94 90 C82 98 64 98 54 88 Z', o.ring || MW], ['M146 88 C136 76 118 76 106 90 C118 98 136 98 146 88 Z', o.ring || MW]);
+        L.push([ell(76, 88, 9, 7), o.iris], [ell(124, 88, 9, 7), o.iris]);
+        L.push([circ(77, 88, 4.5), MK], [circ(123, 88, 4.5), MK], [circ(75, 86, 1.6), MW], [circ(121, 86, 1.6), MW]);
+        L.push(['M42 68 L98 82 L96 92 L46 80 Z', o.brow], ['M158 68 L102 82 L104 92 L154 80 Z', o.brow]);
+        L.push(['M80 94 C90 84 110 84 120 94 L118 118 C115 134 108 146 100 158 C92 146 85 134 82 118 Z', o.beak]);
+        L.push(['M100 86 C110 86 116 90 120 94 L118 118 C115 134 108 146 100 158 Z', o.beakDark]);
+        if (o.cere) L.push(['M80 94 C90 84 110 84 120 94 L119 104 C108 97 92 97 81 104 Z', o.cere]);
+        L.push([ell(93, 104, 2.5, 3.5), MK], [ell(107, 104, 2.5, 3.5), MK], ['M85 122 Q100 130 115 122', null, MK]);
+        return L;
+    }
+    // A horse in profile (facing left, or right with facing = -1): flowing mane, flared nostril, angry eye
+    function broncoHead(coat, mane, shade, blaze, wild) {
+        const L = [
+            ['M126 14 C140 8 150 2 166 0 C158 10 160 18 168 24 C178 20 188 18 196 20 C184 30 182 40 186 50 C190 58 196 66 198 74 C188 76 182 86 184 98 C186 112 194 120 198 130 C186 132 180 144 180 158 C180 170 186 178 188 186 L158 186 C168 148 170 110 166 74 C164 48 150 28 126 14 Z', mane],
+            ['M128 18 C150 22 164 44 166 72 C170 110 166 148 156 186 L92 186 C98 160 96 142 86 132 C74 136 58 142 42 142 C26 142 16 128 18 114 C20 100 30 92 40 84 C60 68 78 46 94 30 C104 20 116 16 128 18 Z', coat],
+            ['M108 26 L114 -2 L130 24 Z', coat], ['M112 22 L115 8 L123 22 Z', shade],
+            ['M18 114 C20 100 30 92 40 88 C48 100 50 122 44 140 C30 142 18 128 18 114 Z', shade],
+            ['M104 22 C94 16 84 20 78 30 C90 30 96 38 98 50 C104 40 110 30 104 22 Z', mane],
+            ['M96 80 C112 88 122 106 116 128', null, shade],
+            wild ? ['M20 128 Q34 140 48 132 L44 140 Q32 146 22 136 Z', '#7a2a2a'] : ['M22 130 Q34 134 46 130', null, MK],
+            ['M84 62 C92 54 104 56 108 64 C100 70 92 70 84 62 Z', MW],
+            ['M78 54 L112 50 L110 57 L82 60 Z', shade],
+        ];
+        if (blaze) L.splice(5, 0, ['M84 44 C74 62 56 82 36 98 C50 96 66 84 78 66 Z', blaze]);
+        // Fit the long head inside the badge (squeeze to ~75%), and the colt faces the other way
+        const fx = (x) => { const v = 28 + x * 0.74; return wild ? v : 200 - v; };
+        const P = (d) => (typeof d === 'string' ? d.replace(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g, (m, x, y) => `${fx(+x).toFixed(1)} ${(16 + +y * 0.84).toFixed(1)}`) : d);
+        const out = L.map(([d, f, st]) => [P(d), f, st]);
+        // Round bits are placed after the squeeze (arcs don't survive it)
+        const fy = (y) => 16 + y * 0.84;
+        out.push([ell(fx(30), fy(108), 3.4, 5.8), MK], [circ(fx(98), fy(63), 3.6), MK], [circ(fx(96.5), fy(61.5), 1.2), MW]);
+        return out;
+    }
+
     const MASCOTS = {
         DET: () => [                                                   // Lion
             [starPoly(100, 104, 16, 84, 64), '#b9731f'], [starPoly(100, 104, 16, 70, 56, -Math.PI / 2 + 0.2), '#d58f2c'],
@@ -1295,13 +1341,17 @@
             [circ(76, 92, 7), MK], [circ(124, 92, 7), MK], [circ(74, 90, 2.4), MW], [circ(122, 90, 2.4), MW],
             ['M62 80 Q76 72 88 82', null, '#5a361f'], ['M138 80 Q124 72 112 82', null, '#5a361f'],
         ],
-        BUF: () => [                                                   // Bison
-            ['M40 92 C20 86 12 66 22 48 C30 64 42 72 58 74 Z', '#efe4cc'], ['M160 92 C180 86 188 66 178 48 C170 64 158 72 142 74 Z', '#efe4cc'],
-            ['M44 82 C40 50 70 26 100 26 C130 26 160 50 156 82 C154 102 140 110 136 118 L64 118 C60 110 46 102 44 82 Z', '#3b2416'],
-            ['M58 80 C60 50 84 38 100 38 C116 38 140 50 142 80 C148 110 136 150 118 166 C108 174 92 174 82 166 C64 150 52 110 58 80 Z', '#5a3a24'],
-            ['M74 150 C80 176 120 176 126 150 C118 160 82 160 74 150 Z', '#3b2416'],
-            [ell(100, 138, 22, 15), '#2a1a10'], [ell(92, 138, 4, 6), MK], [ell(108, 138, 4, 6), MK],
-            [circ(78, 96, 6), MK], [circ(122, 96, 6), MK], [circ(76, 94, 2), MW], [circ(120, 94, 2), MW],
+        BUF: () => [                                                   // Bison, head-on, woolly hump
+            ['M46 84 C26 80 14 62 20 38 C28 54 40 62 56 64 Z', '#efe4cc'], ['M154 84 C174 80 186 62 180 38 C172 54 160 62 144 64 Z', '#efe4cc'],
+            [circ(56, 74, 24), '#3b2416'], [circ(80, 54, 26), '#3b2416'], [circ(100, 46, 28), '#3b2416'], [circ(120, 54, 26), '#3b2416'], [circ(144, 74, 24), '#3b2416'],
+            [circ(44, 102, 20), '#3b2416'], [circ(156, 102, 20), '#3b2416'],
+            ['M62 84 C66 64 134 64 138 84 C144 112 136 146 122 166 C112 180 88 180 78 166 C64 146 56 112 62 84 Z', '#5e3d26'],
+            [circ(84, 80, 13), '#4a2e1c'], [circ(100, 72, 15), '#4a2e1c'], [circ(116, 80, 13), '#4a2e1c'],
+            ['M72 160 C74 190 90 198 100 198 C110 198 126 190 128 160 C116 174 84 174 72 160 Z', '#2e1c10'],
+            [ell(100, 148, 25, 17), '#2a1a10'], [ell(91, 148, 4, 6), MK], [ell(109, 148, 4, 6), MK],
+            ['M68 106 C76 98 88 100 93 110 C84 114 74 113 68 106 Z', '#f4e3c0'], ['M132 106 C124 98 112 100 107 110 C116 114 126 113 132 106 Z', '#f4e3c0'],
+            [circ(82, 107, 4), MK], [circ(118, 107, 4), MK],
+            ['M62 96 L95 104 L94 108 L62 100 Z', '#2a1a10'], ['M138 96 L105 104 L106 108 L138 100 Z', '#2a1a10'],
         ],
         HOU: () => [                                                   // Longhorn steer
             ['M66 70 C44 70 22 60 8 40 C24 46 42 48 62 52 Z', '#f1e7d2'], ['M134 70 C156 70 178 60 192 40 C176 46 158 48 138 52 Z', '#f1e7d2'],
@@ -1311,14 +1361,21 @@
             ['M100 56 L90 74 L100 98 L110 74 Z', '#f1e7d2'],
             [circ(78, 92, 6), MK], [circ(122, 92, 6), MK], [circ(76, 90, 2), MW], [circ(120, 90, 2), MW],
         ],
-        LAR: () => [                                                   // Ram (profile)
-            ['M120 40 C150 40 168 66 162 94 C156 122 130 140 100 132 C84 128 78 140 78 154 L58 172 C40 156 32 132 40 108 C30 100 26 86 34 74 C48 52 84 38 120 40 Z', '#e8dcc2'],
-            ['M100 40 C138 26 176 50 174 90 C172 126 136 142 112 126 C94 114 98 86 118 82 C134 80 142 96 132 106 C126 112 116 108 118 100', '#c9a24a', '#8d6b22'],
-            [ell(46, 92, 4, 3), MK], [circ(76, 76, 6), MK], [circ(74, 74, 2), MW],
-            ['M36 104 Q46 110 58 106', null, MK],
+        LAR: () => [                                                   // Ram, head-on, horns curled
+            [circ(46, 92, 40), '#e2b13c'], [circ(46, 92, 27), '#b98a22'], [circ(46, 92, 14), '#e2b13c'], [circ(46, 92, 5), '#b98a22'],
+            [circ(154, 92, 40), '#e2b13c'], [circ(154, 92, 27), '#b98a22'], [circ(154, 92, 14), '#e2b13c'], [circ(154, 92, 5), '#b98a22'],
+            ['M14 74 L28 80 M8 96 L22 96 M16 118 L30 110 M40 132 L44 118 M186 74 L172 80 M192 96 L178 96 M184 118 L170 110 M160 132 L156 118', null, '#8d6b22'],
+            ['M66 44 C76 28 124 28 134 44 C142 62 140 92 130 118 C124 140 114 164 100 172 C86 164 76 140 70 118 C60 92 58 62 66 44 Z', '#f2ead7'],
+            ['M68 52 C74 34 90 26 100 32 C110 26 126 34 132 52 C122 46 112 48 100 46 C88 48 78 46 68 52 Z', '#ffffff'],
+            ['M93 96 L107 96 L110 140 L90 140 Z', '#e2d6bb'],
+            [ell(100, 150, 21, 18), '#e3d6bb'], [ell(92, 152, 3, 5), MK], [ell(108, 152, 3, 5), MK],
+            ['M90 164 Q100 170 110 164', null, MK],
+            ['M70 86 C78 78 90 82 95 92 C86 97 76 95 70 86 Z', '#f2c14e'], ['M130 86 C122 78 110 82 105 92 C114 97 124 95 130 86 Z', '#f2c14e'],
+            [ell(84, 89, 5, 2), MK], [ell(116, 89, 5, 2), MK],
+            ['M64 76 L96 86 L95 90 L64 80 Z', '#8d6b22'], ['M136 76 L104 86 L105 90 L136 80 Z', '#8d6b22'],
         ],
-        DEN: () => horseHead('#f6f3ee', '#f37a1f', 1),                // Bronco (wild, orange mane)
-        IND: () => horseHead('#ffffff', '#1d4fa3', -1, '#e9eef8'),      // Colt (white, blue mane)
+        DEN: () => broncoHead('#8a4b22', '#f37a1f', '#6a3818', null, true),     // Bucking bronco (chestnut, fiery mane)
+        IND: () => broncoHead('#f8f8f6', '#1d4fa3', '#d9dde6', '#e9eef8', false), // Colt (white, blue mane)
         MIA: () => [                                                   // Dolphin
             ['M24 150 C40 148 56 156 70 164 C86 156 100 152 116 156 C132 160 150 168 176 158 L176 186 L24 186 Z', '#1d7fa6'],
             ['M30 128 C40 84 86 52 132 58 C152 60 166 70 176 84 C166 84 158 88 154 96 C150 118 128 140 96 146 C76 150 58 146 44 138 C40 146 34 154 26 158 C28 146 28 136 30 128 Z', '#3fb7c9'],
@@ -1327,22 +1384,11 @@
             ['M176 84 C184 86 192 90 194 94 C186 96 178 94 170 92 Z', '#3fb7c9'],
             [circ(150, 84, 4.5), MK], [circ(149, 83, 1.4), MW],
         ],
-        PHI: () => birdHead('#fbfbf8', '#f2b72c', null, '#f2b72c', 1, [      // Eagle (bald head, dark body)
-            ['M150 170 C150 150 148 136 142 126 C126 140 112 152 100 172 Z', '#3c2c1e'],
-        ]),
-        SEA: () => birdHead('#5b4634', '#8e939b', '#f4f1ea', '#f5d34a', -1, [ // Osprey / seahawk
-            ['M70 82 C88 82 108 92 122 106', null, '#2f2318'],
-        ]),
-        ATL: () => birdHead('#8a8f99', '#e5b42e', '#d9dde3', '#e5b42e', 1, [  // Falcon
-            ['M84 86 C82 98 76 108 68 116 C80 112 90 102 94 90 Z', '#2d3038'],
-        ]),
-        BAL: () => birdHead('#1b1b22', '#2b2b33', null, '#b9a1e6', -1, [      // Raven
-            ['M120 60 C132 72 140 90 142 110', null, '#4a3a75'],
-        ]),
-        ARI: () => [                                                   // Cardinal (crested head)
-            ['M96 50 L80 12 L106 40 L104 8 L122 46 Z', '#d62632'],
-            ...birdHead('#d62632', '#f29a2e', '#16161b', '#ffffff', 1).map(l => (l[1] === '#16161b' ? ['M54 72 C66 62 90 62 102 74 C96 92 78 100 56 96 Z', '#16161b'] : l)),
-        ],
+        PHI: () => raptorHead({ head: '#f7f5ef', ruff: '#4a3424', brow: '#d3ccbd', beak: '#f3b62a', beakDark: '#d48f16', iris: '#f3c232' }), // Bald eagle
+        SEA: () => raptorHead({ head: '#f4f1ea', cap: '#4b3a2c', ruff: '#4b3a2c', brow: '#4b3a2c', beak: '#30343a', beakDark: '#1d2025', cere: '#9aa3ad', iris: '#f5d34a', mask: '#3a2c20' }), // Osprey
+        ATL: () => raptorHead({ head: '#848b96', cap: '#3c414b', ruff: '#5d636d', brow: '#2a2e36', beak: '#3d4048', beakDark: '#25272d', cere: '#f0b52c', iris: '#3a2410', ring: '#f0b52c', malar: '#2a2e36', cheek: '#eceef1' }), // Falcon
+        BAL: () => raptorHead({ head: '#1f1d27', ruff: '#15141b', brow: '#3a3550', beak: '#3d3d47', beakDark: '#24242c', iris: '#e8c64a', sheen: '#6a4fb0' }), // Raven
+        ARI: () => raptorHead({ head: '#d62632', crest: '#d62632', ruff: '#a81c26', brow: '#8c141d', beak: '#f29a2e', beakDark: '#d47a18', iris: '#ffd34d', face: '#16161b' }), // Cardinal
         NO: () => [                                                    // Fleur-de-lis
             ['M100 18 C120 44 124 72 108 96 L92 96 C76 72 80 44 100 18 Z', '#d6b46a'],
             ['M88 100 C60 70 26 78 30 108 C34 128 58 130 64 116 C52 118 46 108 54 100 C62 94 78 98 88 108 Z', '#d6b46a'],
@@ -1358,17 +1404,31 @@
             ['M100 14 C110 30 112 52 112 72 L170 112 L170 126 L112 108 L110 150 L132 168 L132 178 L100 170 L68 178 L68 168 L90 150 L88 108 L30 126 L30 112 L88 72 C88 52 90 30 100 14 Z', '#f4f6f8'],
             ['M96 40 C98 32 102 32 104 40 L104 58 L96 58 Z', '#7cc4e8'],
         ],
-        NYG: () => [                                                   // Giants of the skyline
-            ['M30 180 L30 110 L52 110 L52 180 Z', '#c9d1dc'], ['M56 180 L56 70 L72 56 L88 70 L88 180 Z', '#e8edf3'],
-            ['M92 180 L92 40 L100 14 L108 40 L108 180 Z', '#ffffff'], ['M112 180 L112 84 L142 84 L142 180 Z', '#c9d1dc'],
-            ['M146 180 L146 120 L170 120 L170 180 Z', '#e8edf3'],
-            ['M62 84 h8 v8 h-8 Z M76 84 h8 v8 h-8 Z M62 104 h8 v8 h-8 Z M76 104 h8 v8 h-8 Z M118 96 h8 v8 h-8 Z M130 96 h8 v8 h-8 Z M118 116 h8 v8 h-8 Z M130 116 h8 v8 h-8 Z', '#5a7bb5'],
+        NYG: () => [                                                   // A bearded giant
+            ['M44 96 C38 50 70 24 100 24 C130 24 162 50 156 96 C150 78 140 68 126 64 L74 64 C60 68 50 78 44 96 Z', '#5a3a22'],
+            [ell(54, 106, 7, 11), '#efc49a'], [ell(146, 106, 7, 11), '#efc49a'],
+            ['M54 88 C54 66 74 56 100 56 C126 56 146 66 146 88 L144 120 C142 134 136 144 128 150 L72 150 C64 144 58 134 56 120 Z', '#f0c39a'],
+            ['M52 76 C70 66 130 66 148 76 L148 88 C130 80 70 80 52 88 Z', '#d0313b'],
+            ['M54 110 C56 142 70 170 100 188 C130 170 144 142 146 110 C138 124 126 134 112 134 L88 134 C74 134 62 124 54 110 Z', '#6b4428'],
+            ['M74 130 C84 118 96 122 100 127 C104 122 116 118 126 130 C116 135 106 134 100 132 C94 134 84 135 74 130 Z', '#4e3019'],
+            ['M88 146 Q100 151 112 146', null, MK],
+            ['M62 92 L96 98 L94 106 L64 100 Z', '#4e3019'], ['M138 92 L104 98 L106 106 L136 100 Z', '#4e3019'],
+            [ell(82, 107, 5, 4), MK], [ell(118, 107, 5, 4), MK], [circ(80, 105, 1.5), MW], [circ(116, 105, 1.5), MW],
+            ['M100 102 L92 126 L108 126 Z', '#dca77c'],
         ],
-        NE: () => [                                                    // Tricorn hat
-            ['M18 118 C40 90 70 82 100 82 C130 82 160 90 182 118 C160 112 140 112 124 124 L100 140 L76 124 C60 112 40 112 18 118 Z', '#1b2a4a'],
-            ['M52 96 C60 64 80 50 100 50 C120 50 140 64 148 96 C126 88 74 88 52 96 Z', '#22355c'],
-            ['M18 118 C40 112 60 112 76 124 L100 140 L124 124 C140 112 160 112 182 118', null, '#ffffff'],
-            [starPoly(100, 106, 5, 12, 5), '#ffffff'], ['M128 60 C150 40 170 36 182 40 C168 50 152 60 136 68 Z', '#d0313b'],
+        NE: () => [                                                    // Minuteman in a tricorn hat
+            [ell(56, 114, 14, 26), '#eeeeee'], [ell(144, 114, 14, 26), '#eeeeee'],
+            [ell(60, 114, 7, 11), '#efc49a'], [ell(140, 114, 7, 11), '#efc49a'],
+            ['M62 92 C62 70 80 60 100 60 C120 60 138 70 138 92 L136 128 C132 156 118 172 100 172 C82 172 68 156 64 128 Z', '#f1c9a0'],
+            ['M70 140 C78 160 90 170 100 172 C110 170 122 160 130 140 C120 154 80 154 70 140 Z', '#e2b088'],
+            ['M70 98 L95 105 L93 110 L70 104 Z', '#7a5a3a'], ['M130 98 L105 105 L107 110 L130 104 Z', '#7a5a3a'],
+            [ell(84, 114, 5, 4), MK], [ell(116, 114, 5, 4), MK],
+            ['M100 110 L93 136 L106 136 Z', '#ddab82'],
+            ['M86 150 Q100 146 114 150', null, '#7a3a2a'],
+            ['M50 72 C58 40 80 24 100 24 C120 24 142 40 150 72 C126 64 74 64 50 72 Z', '#22355c'],
+            ['M12 90 C40 64 70 56 100 56 C130 56 160 64 188 90 C164 86 144 90 128 100 L100 110 L72 100 C56 90 36 86 12 90 Z', '#1b2a4a'],
+            ['M12 90 C36 86 56 90 72 100 L100 110 L128 100 C144 90 164 86 188 90', null, '#ffffff'],
+            [circ(134, 70, 10), '#d0313b'], [circ(134, 70, 4), '#ffffff'],
         ],
         MIN: () => [                                                   // Viking helmet
             ['M56 92 C40 80 26 56 30 26 C40 46 54 60 72 68 Z', '#f3ead6'], ['M144 92 C160 80 174 56 170 26 C160 46 146 60 128 68 Z', '#f3ead6'],
@@ -1392,11 +1452,14 @@
             ['M20 140 L176 70 L184 140 Z', '#ffcc33'], ['M20 140 L184 140 L184 164 L20 164 Z', '#f2b51f'],
             [ell(96, 124, 10, 7), '#e2a417'], [ell(140, 112, 7, 5), '#e2a417'], [ell(60, 150, 8, 5), '#d99c12'], [ell(150, 152, 9, 5), '#d99c12'], [ell(164, 96, 5, 4), '#e2a417'],
         ],
-        PIT: () => [                                                   // Steel I-beam
-            ['M30 40 L170 40 L170 62 L112 62 L112 138 L170 138 L170 160 L30 160 L30 138 L88 138 L88 62 L30 62 Z', '#c4c9d1'],
-            ['M30 40 L170 40 L170 48 L30 48 Z M30 138 L170 138 L170 146 L30 146 Z', '#e8ebef'],
-            [circ(46, 51, 4), '#7b8290'], [circ(154, 51, 4), '#7b8290'], [circ(46, 149, 4), '#7b8290'], [circ(154, 149, 4), '#7b8290'],
-            [starPoly(100, 100, 4, 18, 5, 0), '#ffb612'],
+        PIT: () => [                                                   // Steelworker's hard hat on a girder, sparks flying
+            [starPoly(100, 100, 12, 92, 58), '#ffb612'],
+            ['M34 150 L166 150 L166 158 L108 158 L108 178 L166 178 L166 186 L34 186 L34 178 L92 178 L92 158 L34 158 Z', '#8a929e'],
+            [circ(46, 154, 2.5), '#5b626d'], [circ(154, 154, 2.5), '#5b626d'], [circ(46, 182, 2.5), '#5b626d'], [circ(154, 182, 2.5), '#5b626d'],
+            ['M42 130 C42 82 68 52 100 52 C132 52 158 82 158 130 Z', '#e8ebef'],
+            ['M91 54 L109 54 L111 130 L89 130 Z', '#c4c9d1'], ['M66 66 C58 82 56 104 58 130 L68 130 C66 106 68 84 76 70 Z', '#c4c9d1'], ['M134 66 C142 82 144 104 142 130 L132 130 C134 106 132 84 124 70 Z', '#c4c9d1'],
+            ['M22 128 C60 118 140 118 178 128 L178 142 C140 134 60 134 22 142 Z', '#c4c9d1'],
+            [circ(40, 134, 3), '#7b8290'], [circ(70, 128, 3), '#7b8290'], [circ(100, 126, 3), '#7b8290'], [circ(130, 128, 3), '#7b8290'], [circ(160, 134, 3), '#7b8290'],
         ],
         SF: () => [                                                    // Pickaxes and a gold nugget
             ['M48 44 L58 36 L150 152 L140 160 Z', '#8a5a2b'], ['M152 44 L142 36 L50 152 L60 160 Z', '#8a5a2b'],
@@ -1410,13 +1473,17 @@
             [ell(82, 98, 12, 14), MK], ['M108 84 C118 80 130 84 132 94 C132 108 118 114 110 108 Z', MK], ['M56 78 L142 104', null, MK],
             ['M96 116 L104 116 L100 128 Z', MK], ['M84 140 v10 M94 140 v10 M106 140 v10 M116 140 v10', null, '#7a7a7a'],
         ],
-        TB: () => [                                                    // Pirate ship
-            ['M26 132 L174 132 C166 156 150 170 124 172 L76 172 C50 170 34 156 26 132 Z', '#5a3a22'],
-            ['M98 30 L104 30 L104 132 L98 132 Z', '#3a2616'],
-            ['M106 40 C136 56 146 84 142 112 L106 112 Z', '#f1ece2'], ['M96 48 C70 62 60 86 64 112 L96 112 Z', '#d0313b'],
-            ['M104 20 L132 28 L104 36 Z', '#d0313b'],
-            ['M40 140 h120', null, '#c9a24a'],
-            ['M18 176 C40 168 60 182 80 176 C100 168 120 182 140 176 C160 168 172 176 184 176', null, '#7cc4e8'],
+        TB: () => [                                                    // Pirate ship under full sail
+            ['M126 12 L130 12 L130 122 L126 122 Z', '#3a2616'], ['M74 24 L78 24 L78 122 L74 122 Z', '#3a2616'],
+            ['M130 10 L164 2 L154 12 L166 20 L130 18 Z', '#d0313b'],
+            ['M98 24 C114 20 142 20 158 24 C162 40 162 58 158 72 C142 76 114 76 98 72 C94 58 94 40 98 24 Z', '#d0313b'],
+            ['M44 36 C60 32 92 32 108 36 C112 52 112 70 108 84 C92 88 60 88 44 84 C40 70 40 52 44 36 Z', '#f1ece2'],
+            ['M102 80 C116 78 142 78 154 80 C156 94 156 106 154 118 L102 118 C100 106 100 94 102 80 Z', '#f1ece2'],
+            ['M50 92 C64 90 90 90 102 92 C104 102 104 110 102 118 L50 118 C48 110 48 102 50 92 Z', '#d0313b'],
+            ['M12 120 L188 120 C180 150 158 168 128 172 L72 172 C42 168 20 150 12 120 Z', '#6b4428'],
+            ['M18 130 L182 130 L178 140 L22 140 Z', '#c9a24a'],
+            [circ(60, 154, 5), MK], [circ(100, 156, 5), MK], [circ(140, 154, 5), MK],
+            ['M4 178 C24 168 40 186 60 178 C80 168 96 186 116 178 C136 168 152 186 172 178 C182 174 190 176 196 178 L196 198 L4 198 Z', '#2a7fb8'],
         ],
         WAS: () => [                                                   // Hog
             ['M46 70 L40 30 L80 52 Z', '#e89aa6'], ['M154 70 L160 30 L120 52 Z', '#e89aa6'],
@@ -1429,6 +1496,15 @@
 
     // Draw a team's mascot centred at (0,0), fitting a circle of radius r
     const mascotPathCache = {};
+    let MASCOT_SHADE = null;
+    function makeMascotShade(c) {
+        const g = c.createLinearGradient(30, 10, 170, 195);
+        g.addColorStop(0, 'rgba(255,255,255,0.28)');
+        g.addColorStop(0.42, 'rgba(255,255,255,0)');
+        g.addColorStop(0.58, 'rgba(0,0,0,0)');
+        g.addColorStop(1, 'rgba(0,0,0,0.3)');
+        return g;
+    }
     function drawMascot(c, team, r) {
         const make = MASCOTS[team.abbr];
         if (!make) return false;
@@ -1444,7 +1520,16 @@
         c.lineWidth = 10;
         for (const [p, fill] of layers) if (fill) c.stroke(p);
         for (const [p, fill, stroke] of layers) {
-            if (fill) { c.fillStyle = fill; c.fill(p); }
+            if (fill) {
+                c.fillStyle = fill;
+                c.fill(p);
+                // Light from the upper left: a soft sheen on top, shadow underneath, for a little volume
+                c.save();
+                c.clip(p);
+                c.fillStyle = MASCOT_SHADE || (MASCOT_SHADE = makeMascotShade(c));
+                c.fillRect(0, 0, 200, 200);
+                c.restore();
+            }
             if (stroke) { c.strokeStyle = stroke; c.lineWidth = fill ? 2.5 : 4; c.stroke(p); }
         }
         c.restore();
@@ -1537,7 +1622,7 @@
         c.save();
         badgePath(c, shape, r);
         c.clip();
-        c.globalAlpha = 0.35; // The pattern sits quietly behind the mascot
+        c.globalAlpha = 0.2; // The pattern sits quietly behind the mascot
         badgeMark(c, mark, r, team.s === team.p ? '#ffffff' : team.s);
         c.restore();
         badgePath(c, shape, r);
@@ -1553,8 +1638,8 @@
         c.save();
         badgePath(c, shape, r * 0.97);
         c.clip();
-        c.translate(0, big ? -r * 0.06 : 0);
-        const drew = drawMascot(c, team, r * (big ? 0.7 : 0.8));
+        c.translate(0, big ? -r * 0.1 : 0);
+        const drew = drawMascot(c, team, r * (big ? 0.78 : 0.88));
         c.restore();
         const txt = team.abbr;
         c.textAlign = 'center';
@@ -5996,21 +6081,39 @@
         const options = [{ id: 'GO', label: 'GO FOR IT', sub: `4TH & ${firstDownLine >= 100 ? 'GOAL' : togo}` }];
         if (lineOfScrimmage < 92) options.push({ id: 'PUNT', label: 'PUNT', sub: 'FLIP THE FIELD' });
         if (fgd <= 66) options.push({ id: 'FG', label: 'FIELD GOAL', sub: `${fgd} YDS • ${Math.round(wxFgChance(fgd, false) * 100)}%` });
-        offerChoice('FOURTH', '4TH DOWN DECISION', `${togo} TO GO FROM THE ${spotText(lineOfScrimmage).toUpperCase()}`, options, () => {
-            const off = possession === 'HOME' ? scoreHome : scoreAway;
-            const opp = possession === 'HOME' ? scoreAway : scoreHome;
-            const trail = opp - off;
-            const late = quarter >= 4 && gameClock < 240;
-            const fk = Math.round(fgd - wxKickYards()) + (wxWet() ? 3 : 0); // Kicking range in this weather
-            if (late && trail > 3) return 'GO';
-            if (late && trail > 0 && fk <= 55) return 'FG';
-            if (late && trail > 0) return 'GO';
-            if (fk <= 52 && (togo > 2 || lineOfScrimmage >= 96)) return 'FG';
-            if (togo <= 1 && lineOfScrimmage >= 45) return 'GO';
-            if (togo <= 3 && lineOfScrimmage >= 58 && fk > 52) return 'GO';
-            if (fk <= 56 && togo > 2) return 'FG';
-            return lineOfScrimmage < 92 ? 'PUNT' : 'FG';
-        });
+        offerChoice('FOURTH', '4TH DOWN DECISION', `${togo} TO GO FROM THE ${spotText(lineOfScrimmage).toUpperCase()}`, options, () => aiFourthDown(togo, fgd));
+    }
+
+    // The CPU's 4th-down call, like a modern NFL coach: go for it on short yardage, take the points in range,
+    // never punt from inside the opponent's 35, and press when trailing late
+    function aiFourthDown(togo, fgd) {
+        const L = lineOfScrimmage;
+        const off = possession === 'HOME' ? scoreHome : scoreAway;
+        const opp = possession === 'HOME' ? scoreAway : scoreHome;
+        const trail = opp - off;
+        const late = quarter >= 4 && gameClock < 240;
+        const fk = Math.round(fgd - wxKickYards()) + (wxWet() ? 3 : 0); // Kicking range in this weather
+        const k = sideTeam(possession).roster.k;
+        const range = 52 + clamp((((k && k.r) || 74) - 74) * 0.25, -3, 4); // A big leg stretches it a little
+        const inRange = fk <= range;
+        const canPunt = L < 92;
+        // Late and behind: a field goal only when it ties or wins, otherwise keep the ball
+        if (late && trail > 3) return (L >= 35 || togo <= 4 || gameClock < 150 || !canPunt) ? 'GO' : 'PUNT';
+        if (late && trail > 0) return fk <= range + 3 ? 'FG' : ((L >= 35 || gameClock < 150 || !canPunt) ? 'GO' : 'PUNT');
+        // Last snap of a half: take the points
+        if ((quarter === 2 || quarter >= 4) && gameClock < 20 && fk <= range + 6) return 'FG';
+        // Ahead late in field-goal range: the points matter more than the yards
+        if (late && trail < 0 && inRange && togo > 1) return 'FG';
+        // Short yardage
+        if (togo <= 1 && L >= 30) return 'GO';
+        if (togo <= 2 && L >= 50) return 'GO';
+        if (togo <= 3 && L >= 60 && !inRange) return 'GO';
+        if (inRange) return 'FG';
+        // Out of range: never punt from inside the opponent's 35
+        if (L >= 65 || !canPunt) return togo <= 7 || fk > range + 6 ? 'GO' : 'FG';
+        if (L >= 55) return togo <= 4 ? 'GO' : (fk <= range + 4 ? 'FG' : 'PUNT');
+        if (L >= 40 && togo <= 2) return 'GO';
+        return 'PUNT';
     }
 
     function setupConversionChoice() {
