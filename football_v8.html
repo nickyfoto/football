@@ -123,6 +123,9 @@
             padding: 5px 9px; background: rgba(30,41,59,0.9); color: #fff; font-size: 0.68rem;
             border: 1px solid #64748b; border-radius: 4px;
         }
+        .wx-chip { align-self: center; padding: 4px 8px; background: rgba(15,23,42,0.85); color: #bae6fd; font-size: 0.62rem;
+            border: 1px solid #0ea5e9; border-radius: 4px; white-space: nowrap; }
+        @media (max-width: 640px) { .wx-chip { font-size: 0.55rem; padding: 2px 5px; } }
 
         #status-banner {
             margin: 6px auto 0;
@@ -368,6 +371,7 @@
                     </div>
                 </div>
                 <div class="tool-btns">
+                    <span id="wx-chip" class="wx-chip hidden"></span>
                     <button id="speed-btn" class="hidden">SPEED 1X</button>
                     <button id="menu-btn">MENU</button>
                     <button id="cam-btn">3D CAM: ON</button>
@@ -430,6 +434,7 @@
         <!-- Game Settings -->
         <div id="settings-box" class="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-3 text-[11px] text-slate-300">
             <div class="flex items-center gap-2"><span>QUARTER</span><div class="opt-group" id="opt-qtr"></div></div>
+            <div class="flex items-center gap-2"><span>WEATHER</span><div class="opt-group" id="opt-wx"></div></div>
             <div class="flex items-center gap-2" id="opt-skill-wrap"><span>CPU SKILL</span><div class="opt-group" id="opt-skill"></div></div>
         </div>
 
@@ -1611,6 +1616,177 @@
         return img;
     }
 
+    // =====================================================================================
+    //  WEATHER
+    // =====================================================================================
+    // Game-day weather comes from the home stadium and the date. Domes (and closed retractable roofs) play
+    // indoors. Outdoors: rain and snow make the ball slick (worse throws, more drops and fumbles) and the
+    // footing slower; wind knocks down deep balls and pushes kicks; cold shortens kicks.
+    const INDOOR = new Set(['ARI', 'ATL', 'DAL', 'DET', 'HOU', 'IND', 'LV', 'LAR', 'LAC', 'MIN', 'NO']);
+    // Outdoor climate: [September high (F), drop per month, chance of rain or snow, snow possible, wind tendency 0-1]
+    const CLIMATE = {
+        BUF: [72, 11, 0.36, true, 0.8], GB: [70, 12, 0.3, true, 0.65], CHI: [74, 11, 0.32, true, 0.85], CLE: [73, 10, 0.36, true, 0.7],
+        PIT: [74, 10, 0.34, true, 0.45], NE: [72, 10, 0.32, true, 0.65], NYG: [76, 9, 0.3, true, 0.6], NYJ: [76, 9, 0.3, true, 0.6],
+        PHI: [78, 9, 0.3, true, 0.5], BAL: [79, 9, 0.3, true, 0.45], WAS: [80, 9, 0.28, true, 0.4], CIN: [79, 10, 0.3, true, 0.4],
+        DEN: [77, 11, 0.2, true, 0.55], KC: [80, 11, 0.26, true, 0.6], SEA: [70, 6, 0.45, false, 0.4], SF: [76, 3, 0.18, false, 0.65],
+        CAR: [84, 8, 0.25, false, 0.3], TEN: [84, 9, 0.28, false, 0.35], JAX: [88, 5, 0.3, false, 0.35], TB: [90, 4, 0.3, false, 0.3],
+        MIA: [89, 3, 0.35, false, 0.35],
+        LONDON: [66, 6, 0.42, false, 0.5], PARIS: [68, 7, 0.38, false, 0.4], MUNICH: [65, 9, 0.38, true, 0.35],
+        MELBOURNE: [62, -3, 0.35, false, 0.6], 'RIO DE JANEIRO': [80, -1, 0.3, false, 0.3], 'MEXICO CITY': [72, 1, 0.12, false, 0.3]
+    };
+    const INDOOR_SITES = new Set(['MADRID']); // The Bernabeu closes its roof
+    let weather = { kind: 'DOME', temp: 72, wind: 0, windDir: 1, heavy: false };
+    let weatherSetting = 'AUTO';                 // AUTO (real climate) or a forced CLEAR / RAIN / SNOW / WIND
+    let wxParticles = [];
+
+    // The game's date: season weeks run from Sep 10, the playoffs in January; a quick game uses today
+    function gameDate(weekIdx, playoff) {
+        if (playoff) return new Date(2027, 0, 12 + 7 * Math.max(0, weekIdx - 18));
+        if (weekIdx !== undefined && weekIdx !== null) return new Date(2026, 8, 10 + 7 * weekIdx);
+        return new Date();
+    }
+    function rollWeather(venue, date, forced) {
+        const wx = { kind: 'CLEAR', temp: 70, wind: 0, windDir: Math.random() < 0.5 ? 1 : -1, heavy: false, venue };
+        if (!forced || forced === 'AUTO') {
+            if (INDOOR.has(venue) || INDOOR_SITES.has(venue)) return { ...wx, kind: 'DOME', temp: 72 };
+            const c = CLIMATE[venue] || [75, 8, 0.25, false, 0.4];
+            let m = date.getMonth();                       // Sep = 0 ... Feb = 5 of the football calendar
+            m = m >= 8 ? m - 8 : (m <= 1 ? m + 4 : 0);
+            wx.temp = Math.round(c[0] - c[1] * m + gauss() * 7);
+            wx.wind = Math.max(0, Math.round(c[4] * 11 + gauss() * 5));
+            if (Math.random() < c[2]) {
+                wx.kind = c[3] && wx.temp <= 34 ? 'SNOW' : 'RAIN';
+                wx.heavy = Math.random() < 0.35;
+                wx.wind += 3;
+            }
+            return wx;
+        }
+        // A forced condition: typical numbers for it
+        if (forced === 'CLEAR') return { ...wx, temp: 68, wind: 4 };
+        if (forced === 'RAIN') return { ...wx, kind: 'RAIN', temp: 52, wind: 10, heavy: true };
+        if (forced === 'SNOW') return { ...wx, kind: 'SNOW', temp: 26, wind: 9, heavy: true };
+        if (forced === 'WIND') return { ...wx, temp: 45, wind: 24 };
+        return wx;
+    }
+    // Picked once at kickoff of every game (season games use the real schedule's week and site)
+    function pickGameWeather() {
+        const sg = (typeof seasonGame !== 'undefined') ? seasonGame : null;
+        let venue = venueTeam().abbr;
+        let date = gameDate();
+        if (sg && typeof season !== 'undefined' && season) {
+            if (sg.site) venue = sg.site;
+            date = gameDate(season.week, season.phase === 'playoffs');
+        }
+        weather = rollWeather(venue, date, weatherSetting);
+        wxParticles = [];
+    }
+    function weatherLabel(wx = weather) {
+        if (!wx || wx.kind === 'DOME') return 'INDOORS';
+        const k = wx.kind === 'CLEAR' ? (wx.wind >= 15 ? 'WINDY' : (wx.temp <= 32 ? 'FREEZING' : 'CLEAR')) : (wx.heavy ? 'HEAVY ' : '') + wx.kind;
+        return `${k} ${wx.temp}°F${wx.wind >= 5 ? ` • WIND ${wx.wind} MPH` : ''}`;
+    }
+    const wxWet = () => weather.kind === 'RAIN' || weather.kind === 'SNOW';
+    const wxSevere = () => (weather.kind === 'SNOW' ? 1 : (weather.kind === 'RAIN' ? 0.6 : 0)) * (weather.heavy ? 1.35 : 1);
+    // +1 when the offense has the wind at its back, -1 into it. Teams switch ends every quarter.
+    function wxWindWith() {
+        if (!weather.wind) return 0;
+        return weather.windDir * (possession === 'HOME' ? 1 : -1) * (quarter % 2 === 1 ? 1 : -1);
+    }
+    // Footing: top speed and burst on a wet or snowy field
+    function wxSpeedMul() { return weather.kind === 'SNOW' ? (weather.heavy ? 0.94 : 0.96) : (weather.kind === 'RAIN' ? (weather.heavy ? 0.975 : 0.985) : 1); }
+    function wxAccelMul() { return weather.kind === 'SNOW' ? (weather.heavy ? 0.8 : 0.86) : (weather.kind === 'RAIN' ? (weather.heavy ? 0.88 : 0.93) : 1); }
+    // Throws: a wet ball sails, wind knocks down the deep ball (more into it)
+    function wxPassSdMul(d) {
+        let m = 1 + wxSevere() * 0.2;
+        if (weather.wind > 8) m *= 1 + (weather.wind - 8) * (d > 15 ? 0.026 : 0.013) * (wxWindWith() < 0 ? 1.25 : 0.85);
+        if (weather.kind !== 'DOME' && weather.temp < 25) m *= 1.04;
+        return m;
+    }
+    function wxCatchAdj() { return -wxSevere() * 0.06 - Math.max(0, weather.wind - 12) * 0.003 - (weather.kind !== 'DOME' && weather.temp < 20 ? 0.01 : 0); } // Slick ball, a ball that moves in the wind
+    function wxFumbleAdj() { return wxSevere() * 0.007 + (weather.kind !== 'DOME' && weather.temp < 20 ? 0.002 : 0); }
+    // Kick distance in yards: wind at the kicker's back adds, into it takes away; cold air and snow shorten it
+    function wxKickYards(kickWith) {
+        if (weather.kind === 'DOME') return 0;
+        const w = kickWith === undefined ? wxWindWith() : kickWith;
+        return w * weather.wind * 0.28 - Math.max(0, 45 - weather.temp) * 0.08 - (weather.kind === 'SNOW' ? 2 : 0);
+    }
+    // Field goals: a wind-adjusted distance, then wet-ball and swirling-wind misses
+    function wxFgChance(distance, pat) {
+        const eff = pat ? distance : distance - wxKickYards();
+        let p = fgChance(Math.round(eff), pat);
+        p *= 1 - wxSevere() * (pat ? 0.02 : 0.05) - Math.max(0, weather.wind - 10) * (pat ? 0.002 : 0.005);
+        return clamp(p, 0.02, 0.99);
+    }
+    // Offensive coordinators run more and take fewer deep shots in bad weather
+    function wxRunBias() { return wxSevere() * 0.11 + Math.max(0, weather.wind - 12) * 0.008; }
+    function wxNoDeep() { return weather.wind >= 18 || (weather.kind === 'SNOW' && weather.heavy); }
+
+    // Simulated (season) games: scoring dips in bad weather
+    function simWeatherDrop(g, weekIdx, playoff) {
+        const wx = rollWeather(g.site || g.h, gameDate(weekIdx, playoff), 'AUTO');
+        return (wx.kind === 'SNOW' ? 3.5 : (wx.kind === 'RAIN' ? 2 : 0)) * (wx.heavy ? 1.3 : 1) + Math.max(0, wx.wind - 12) * 0.25;
+    }
+
+    // Drawing: snow on the turf, falling rain or snow, and a tint for gray skies
+    function drawWeatherGround(left, fw, f0, f1) {
+        if (weather.kind === 'SNOW') {
+            ctx.fillStyle = `rgba(236,242,248,${weather.heavy ? 0.5 : 0.32})`;
+            ctx.fillRect(left, f0, fw, f1 - f0);
+        } else if (weather.kind === 'RAIN') {
+            ctx.fillStyle = 'rgba(20,40,60,0.18)';
+            ctx.fillRect(left, f0, fw, f1 - f0);
+        }
+    }
+    function drawWeather() {
+        if (gameState === 'MENU' || weather.kind === 'DOME') return;
+        const cw = canvas.width;
+        const ch = canvas.height;
+        if (wxWet()) {
+            ctx.fillStyle = weather.kind === 'SNOW' ? 'rgba(200,210,225,0.08)' : 'rgba(10,20,35,0.16)';
+            ctx.fillRect(0, 0, cw, ch);
+        }
+        if (!wxWet()) return;
+        const snow = weather.kind === 'SNOW';
+        const want = Math.round((snow ? 140 : 220) * (weather.heavy ? 1.6 : 1) * Math.min(1.5, (cw * ch) / (1280 * 800)));
+        const drift = weather.windDir * weather.wind * 0.05;
+        while (wxParticles.length < want) wxParticles.push({ x: Math.random() * cw, y: Math.random() * ch, s: 0.6 + Math.random() * 0.8, ph: Math.random() * 6.28 });
+        if (wxParticles.length > want) wxParticles.length = want;
+        ctx.save();
+        if (snow) ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        else { ctx.strokeStyle = 'rgba(190,215,240,0.45)'; ctx.lineWidth = 1.2; ctx.beginPath(); }
+        for (const p of wxParticles) {
+            if (snow) {
+                p.ph += 0.03;
+                p.y += 1.6 * p.s;
+                p.x += drift * 0.6 + Math.sin(p.ph) * 0.5;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 1.6 + p.s * 2, 0, 6.283);
+                ctx.fill();
+            } else {
+                const vx = drift * 2.2;
+                const vy = 15 * p.s;
+                p.x += vx;
+                p.y += vy;
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(p.x - vx * 0.9, p.y - vy * 0.9);
+            }
+            if (p.y > ch + 10) { p.y = -10; p.x = Math.random() * cw; }
+            if (p.x > cw + 10) p.x = -10;
+            if (p.x < -10) p.x = cw + 10;
+        }
+        if (!snow) ctx.stroke();
+        ctx.restore();
+    }
+    function updateWeatherChip() {
+        const el = document.getElementById('wx-chip');
+        if (!el) return;
+        const show = gameState !== 'MENU';
+        el.classList.toggle('hidden', !show);
+        if (!show) return;
+        const t = weatherLabel();
+        if (el.innerText !== t) el.innerText = t;
+    }
+
     // Helmet / pants colors (uniform details beyond the primary & secondary team colors)
     const UNIFORM_EXTRA = {
         KC:  { helm: '#e31837', stripe: '#ffffff', pants: '#ffffff', mask: '#d1d5db' },
@@ -2138,6 +2314,8 @@
     }
     buildOptions($('opt-qtr'), [[5, '5 MIN'], [8, '8 MIN'], [10, '10 MIN'], [15, '15 MIN (NFL)']],
         () => quarterMinutes, (v) => { quarterMinutes = v; });
+    buildOptions($('opt-wx'), [['AUTO', 'REAL'], ['CLEAR', 'CLEAR'], ['RAIN', 'RAIN'], ['SNOW', 'SNOW'], ['WIND', 'WIND']],
+        () => weatherSetting, (v) => { weatherSetting = v; });
     buildOptions($('opt-skill'), [[0, 'ROOKIE'], [1, 'PRO'], [2, 'ALL-PRO']],
         () => cpuSkill, (v) => { cpuSkill = v; });
 
@@ -2540,15 +2718,20 @@
         const nm = info ? info.nm : '';
         let yps = (SPEED_OVERRIDE[nm] || POS_SPEED[pos] || 8.6);
         const rat = info && info.r ? info.r : 72;
-        const rf = (rat - 74) / 20;
-        if (!SPEED_OVERRIDE[nm]) yps *= 1 + rf * 0.025;                              // Better players are a step quicker
+        const prf = (rat - 74) / 20;
+        if (!SPEED_OVERRIDE[nm]) yps *= 1 + prf * 0.025;                              // Better players are a step quicker
         if (info && info.backup) yps *= 0.985;
         if (info && info.energy !== undefined) yps *= 0.95 + 0.05 * info.energy / 100; // Tired legs
+        // Wet or snowy footing: the offense, making cuts it has to plan, loses more than the defense reacting to it
+        const footing = tm === offTm() ? 1 : 0.3;
+        yps *= 1 - (1 - wxSpeedMul()) * footing;
+        // Team rating: coaching, scheme and execution lift (or drag) everyone on the roster a little
+        const rf = prf + teamEdge(tm);
         return Object.assign({
             x, y, vx: 0, vy: 0,
             face: tm === offTm() ? Math.PI / 2 : -Math.PI / 2,
             tm, no: info ? info.no : '', nm, pos,
-            spd: yps / 60, acc: accelFor(pos) / 3600 * (1 + rf * 0.06), rat, rf,
+            spd: yps / 60, acc: accelFor(pos) / 3600 * (1 + prf * 0.06) * (1 - (1 - wxAccelMul()) * footing), rat, rf,
             role: 'IDLE', down: 0, eng: null, shed: 0, blockCd: 0, tackleCd: 0,
             elusive: 0, jukeCd: 0, auto: false, icon: '', targeted: false,
             route: null, wp: 0, path: null, pi: 0, zx: 0, zy: 0, man: -1, cov: '', tvx: 0, tvy: 0,
@@ -2556,6 +2739,12 @@
         }, extra || {});
     }
 
+    // A 90-rated team plays about two rating points better at every spot than its players alone; a 72 about two worse
+    function teamEdge(tm) {
+        const t = tm === 0 ? userTeam : (tm === 1 ? aiTeam : null);
+        const r = t && TEAM_RATING[t.abbr];
+        return r ? clamp((r - 81) * 0.012, -0.15, 0.15) : 0;
+    }
     function getOffenseTeam() { return possession === 'HOME' ? userTeam : aiTeam; }
     function getDefenseTeam() { return possession === 'HOME' ? aiTeam : userTeam; }
 
@@ -2691,7 +2880,8 @@
         overlayMenu.classList.add('hidden');
         hud.style.display = 'flex';
 
-        if (online) send({ type: 'start', home: lobbyTeams.HOME, away: lobbyTeams.AWAY });
+        pickGameWeather();
+        if (online) send({ type: 'start', home: lobbyTeams.HOME, away: lobbyTeams.AWAY, wx: weather });
 
         // Coin toss: the winner defers, so the loser receives the opening kickoff
         possession = Math.random() < 0.5 ? 'HOME' : 'AWAY';
@@ -2704,7 +2894,9 @@
         updateHUD();
         gameState = 'ANIMATING';
         fx('whistle');
-        showBigMessage('COIN TOSS', '#fbbf24', () => setupKickoff(65), 1700, `${sideTeam(openingKicker).name} WINS THE TOSS AND DEFERS`);
+        const ovr = (t) => `${t.abbr} ${TEAM_RATING[t.abbr] || '--'} OVR`;
+        pbp(possession, `PREGAME: ${ovr(visitorTeam())} at ${ovr(venueTeam())} • ${weatherLabel()}.`);
+        showBigMessage('COIN TOSS', '#fbbf24', () => setupKickoff(65), 1900, `${sideTeam(openingKicker).name} WINS THE TOSS AND DEFERS • ${weatherLabel()}`);
     }
 
     function stopGame() {
@@ -2933,8 +3125,9 @@
         player = null;
 
         // The kick: ~35% sail into the end zone, the rest come down in the landing zone (goal line to the 20)
-        const deep = Math.random() < 0.35;
-        const ly = deep ? rand(-8, -1) : rand(1, 17);
+        const kw = wxKickYards(-wxWindWith());
+        const deep = Math.random() < clamp(0.35 + kw * 0.04, 0.05, 0.8);
+        const ly = deep ? rand(-8, -1) : clamp(rand(1, 17) - kw * 0.6, 1, 24);
         const lx = clamp(MID + gauss() * 7, 8, W - 8);
         launchKick('kickoff', MID, kickFrom, lx, ly, rand(3.3, 3.8));
         ball.state = 'tee';
@@ -3105,7 +3298,13 @@
         const off = possession === 'HOME' ? scoreHome : scoreAway;
         const opp = possession === 'HOME' ? scoreAway : scoreHome;
         const hurry = (quarter === 2 || quarter >= 4) && gameClock < 150 && off <= opp;
-        const pick = (ids) => { const id = ids[Math.floor(Math.random() * ids.length)]; return OFFENSIVE_PLAYS.find(p => p.id === id); };
+        const DEEP = ['VERTS', 'WHEEL', 'DAGGER', 'PA'];
+        const pick = (ids) => {
+            // Bad weather: the deep shots mostly come off the call sheet
+            if (wxNoDeep() && ids.some(x => !DEEP.includes(x)) && Math.random() < 0.7) ids = ids.filter(x => !DEEP.includes(x));
+            const id = ids[Math.floor(Math.random() * ids.length)];
+            return OFFENSIVE_PLAYS.find(p => p.id === id);
+        };
         const qbInfo = sideTeam(possession).roster.qb;
         const mobile = qbInfo && (SPEED_OVERRIDE[qbInfo.nm] || 8.5) >= 9.3;
         if (isTwoPointConversion) return pick(['SLANTS', 'MESH', 'IZ', 'STICK', 'SMASH', 'POWER', 'QUICKOUT', 'SHALLOW']);
@@ -3116,7 +3315,7 @@
         if (down >= 3 && togo >= 7) return pick(['CURLS', 'MESH', 'SLANTS', 'VERTS', 'SMASH', 'YCROSS', 'SCREEN', 'DRAW', 'DAGGER', 'FLOOD', 'LEVELS', 'SHALLOW', 'WHEEL', ...(mobile ? ['QBDRAW'] : [])]);
         if (lineOfScrimmage >= 88) return pick(['SLANTS', 'MESH', 'IZ', 'TOSS', 'SMASH', 'POWER', 'STICK', 'QUICKOUT', 'BOOT', 'DIVE', 'OZ', ...(mobile ? ['QBDRAW'] : [])]);
         // Base mix on early downs: about half runs, so the whole game lands near the NFL's ~43% runs
-        if (Math.random() < (down === 1 ? 0.55 : 0.47)) return pick(['IZ', 'IZ', 'TOSS', 'POWER', 'OZ', 'OZ', 'COUNTER', 'DIVE', 'DRAW', ...(mobile ? ['QBDRAW'] : ['IZ'])]);
+        if (Math.random() < (down === 1 ? 0.55 : 0.47) + wxRunBias()) return pick(['IZ', 'IZ', 'TOSS', 'POWER', 'OZ', 'OZ', 'COUNTER', 'DIVE', 'DRAW', ...(mobile ? ['QBDRAW'] : ['IZ'])]);
         return pick(['SLANTS', 'CURLS', 'PA', 'MESH', 'VERTS', 'SMASH', 'SCREEN', 'YCROSS', 'LEVELS', 'DAGGER', 'STICK', 'SHALLOW', 'FLOOD', 'BOOT', 'BUBBLE', 'QUICKOUT', 'WHEEL', 'PA', 'BOOT']);
     }
     // The defensive coordinator: down and distance, field and clock, plus what this offense has shown today
@@ -4201,6 +4400,7 @@
         const rush = nearestOpp(qb, defenders, (x) => !x.eng);
         if (rush.d < 2.5) sd *= 1.6;
         if (speedOf(qb) > qb.spd * 0.5) sd *= 1.35;
+        sd *= wxPassSdMul(d);                                                  // Wet ball, wind
         const tx = aim.x + gauss() * sd;
         const ty = aim.y + gauss() * sd * 0.8;
         launchPass(tx, ty, k);
@@ -4292,6 +4492,7 @@
             else if (ball.T > 60 && dd < 2.6) p *= 0.55 + 0.4 * ((dd - tight) / (2.6 - tight));
             p += (r.rf || 0) * 0.03;                                            // Sure hands
             if (dd < tight) p += ((r.rf || 0) - (nearDef ? nearDef.rf || 0 : 0)) * 0.07; // Winning the 50-50 ball
+            p += wxCatchAdj();                                                  // A slick ball, numb hands
             p = clamp(p, 0.02, 0.985);
             if (r.down > 0) p = 0.05;
             if (Math.random() < p) { completePass(r); return; }
@@ -4861,7 +5062,7 @@
         tackler.y = c.y + (tackler.y - c.y) * 0.5;
         if (c.y >= 100 && c.vy > 0) { handleTouchdown(); return; }
         // Fumbles: ~1% of tackles, more on sacks and gang tackles
-        const pf = 0.01 + (sack ? 0.05 : 0) + (help >= 2 ? 0.01 : 0);
+        const pf = 0.01 + (sack ? 0.05 : 0) + (help >= 2 ? 0.01 : 0) + wxFumbleAdj();
         if (!isTwoPointConversion && Math.random() < pf) { handleFumble(tackler); return; }
         endScrimmagePlay(tackler, false);
     }
@@ -5794,19 +5995,20 @@
         const fgd = fgDistance(lineOfScrimmage);
         const options = [{ id: 'GO', label: 'GO FOR IT', sub: `4TH & ${firstDownLine >= 100 ? 'GOAL' : togo}` }];
         if (lineOfScrimmage < 92) options.push({ id: 'PUNT', label: 'PUNT', sub: 'FLIP THE FIELD' });
-        if (fgd <= 66) options.push({ id: 'FG', label: 'FIELD GOAL', sub: `${fgd} YDS • ${Math.round(fgChance(fgd, false) * 100)}%` });
+        if (fgd <= 66) options.push({ id: 'FG', label: 'FIELD GOAL', sub: `${fgd} YDS • ${Math.round(wxFgChance(fgd, false) * 100)}%` });
         offerChoice('FOURTH', '4TH DOWN DECISION', `${togo} TO GO FROM THE ${spotText(lineOfScrimmage).toUpperCase()}`, options, () => {
             const off = possession === 'HOME' ? scoreHome : scoreAway;
             const opp = possession === 'HOME' ? scoreAway : scoreHome;
             const trail = opp - off;
             const late = quarter >= 4 && gameClock < 240;
+            const fk = Math.round(fgd - wxKickYards()) + (wxWet() ? 3 : 0); // Kicking range in this weather
             if (late && trail > 3) return 'GO';
-            if (late && trail > 0 && fgd <= 55) return 'FG';
+            if (late && trail > 0 && fk <= 55) return 'FG';
             if (late && trail > 0) return 'GO';
-            if (fgd <= 52 && (togo > 2 || lineOfScrimmage >= 96)) return 'FG';
+            if (fk <= 52 && (togo > 2 || lineOfScrimmage >= 96)) return 'FG';
             if (togo <= 1 && lineOfScrimmage >= 45) return 'GO';
-            if (togo <= 3 && lineOfScrimmage >= 58 && fgd > 52) return 'GO';
-            if (fgd <= 56 && togo > 2) return 'FG';
+            if (togo <= 3 && lineOfScrimmage >= 58 && fk > 52) return 'GO';
+            if (fk <= 56 && togo > 2) return 'FG';
             return lineOfScrimmage < 92 ? 'PUNT' : 'FG';
         });
     }
@@ -5879,7 +6081,7 @@
 
         const distance = Math.round(110 - holdY);
         const kf = ((o.k && o.k.r) || 72) - 74;
-        const chance = clamp(fgChance(distance, isPAT) * (1 + kf * (isPAT ? 0.001 : 0.004) * Math.max(1, (distance - 30) / 12)), 0.02, 0.995);
+        const chance = clamp(wxFgChance(distance, isPAT) * (1 + kf * (isPAT ? 0.001 : 0.004) * Math.max(1, (distance - 30) / 12)), 0.02, 0.995);
         kickResult = { good: Math.random() < chance, blocked: Math.random() < 0.015, distance, chance };
         gameState = 'FIELD_GOAL_AIMING';
         camFocusY = L + 5;
@@ -6144,14 +6346,14 @@
         }
         // NFL gross punt ~47 yards, measured from the line of scrimmage (the punter stands ~14 back)
         const L = lineOfScrimmage;
-        let gross = clamp(47 + ((punter.rf || 0) * 3) + gauss() * 5, 32, 68);
+        let gross = clamp(47 + ((punter.rf || 0) * 3) + wxKickYards() + gauss() * 5, 25, 72); // Wind and cold move punts
         let pooch = false;
         if (L + gross > 96) {
             // Near midfield: pooch it toward the 10 instead of booting a touchback
             gross = clamp(90 - L + rand(-3, 5), 12, 60);
             pooch = true;
         }
-        const lx = clamp(ballSpotX + gauss() * (pooch ? 9 : 6), 2, W - 2);
+        const lx = clamp(ballSpotX + gauss() * (pooch ? 9 : 6) * (1 + weather.wind * 0.015), 2, W - 2);
         const ly = L + gross;
         ball.kind = 'punt';
         // Hang time ~4.4s (a little less on a pooch)
@@ -6426,8 +6628,9 @@
         const rh = (TEAM_RATING[g.h] || 78) - injuryPenalty(g.h);
         const ra = (TEAM_RATING[g.a] || 78) - injuryPenalty(g.a);
         const edge = neutral ? 0 : 1.3;
-        g.hs = snapScore(clamp(22 + (rh - ra) * 0.45 + edge + gauss() * 9.5, 0, 50));
-        g.as = snapScore(clamp(22 + (ra - rh) * 0.45 - edge + gauss() * 9.5, 0, 50));
+        const wx = simWeatherDrop(g, season.week, !!playoff); // Rain, snow and wind keep scores down
+        g.hs = snapScore(clamp(22 - wx + (rh - ra) * 0.45 + edge + gauss() * 9.5, 0, 50));
+        g.as = snapScore(clamp(22 - wx + (ra - rh) * 0.45 - edge + gauss() * 9.5, 0, 50));
         if (g.hs === g.as && (playoff || Math.random() < 0.88)) {
             if (Math.random() < 0.5 + (rh - ra) * 0.012) g.hs += 3; else g.as += 3;
         }
@@ -7137,6 +7340,7 @@
             ctx.fillRect(left, f0, fw, f1 - f0);
             ctx.globalAlpha = 1;
         }
+        drawWeatherGround(left, fw, f0, f1);
 
         // End zones (offense's own at the bottom, the one they attack at the top)
         drawEndZone(-10, 0, getOffenseTeam());
@@ -8072,6 +8276,7 @@
             case 'start':
                 if (net.role !== 'guest' || !validTeam(msg.home) || !validTeam(msg.away) || msg.home < 0 || msg.away < 0) return;
                 beginGuestGame(msg.home, msg.away);
+                setGuestWeather(msg.wx);
                 break;
             case 's':
                 if (net.role === 'guest') onSnapshot(msg);
@@ -8116,6 +8321,13 @@
         }
     }
 
+    // The host rolls the weather; the guest only draws it (values are checked before use)
+    function setGuestWeather(wx) {
+        const kinds = ['DOME', 'CLEAR', 'RAIN', 'SNOW'];
+        if (!wx || !kinds.includes(wx.kind)) return;
+        weather = { kind: wx.kind, temp: clamp(Math.round(Number(wx.temp) || 60), -20, 110), wind: clamp(Math.round(Number(wx.wind) || 0), 0, 40), windDir: wx.windDir < 0 ? -1 : 1, heavy: !!wx.heavy };
+        wxParticles = [];
+    }
     function beginGuestGame(home, away) {
         userTeam = nfl2026Teams[home];
         aiTeam = nfl2026Teams[away];
@@ -8439,6 +8651,8 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawField();
         drawEntities();
+        drawWeather();
+        updateWeatherChip();
 
         renderHUD(net.role === 'guest' ? guestHud : hudState);
         syncControls();
