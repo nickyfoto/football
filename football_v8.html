@@ -434,6 +434,7 @@
         <!-- Game Settings -->
         <div id="settings-box" class="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-3 text-[11px] text-slate-300">
             <div class="flex items-center gap-2"><span>QUARTER</span><div class="opt-group" id="opt-qtr"></div></div>
+            <div class="flex items-center gap-2"><span>LOGOS</span><div class="opt-group" id="opt-logo"></div></div>
             <div class="flex items-center gap-2"><span>WEATHER</span><div class="opt-group" id="opt-wx"></div></div>
             <div class="flex items-center gap-2" id="opt-skill-wrap"><span>CPU SKILL</span><div class="opt-group" id="opt-skill"></div></div>
         </div>
@@ -470,6 +471,7 @@
             <div id="review-hint" class="hidden text-center text-xs md:text-sm" style="color:#fecaca; background: rgba(127,29,29,0.75); border: 1px solid #ef4444; border-radius: 8px; padding: 6px 12px; max-width: 40rem;"></div>
             <div id="snap-row" class="flex flex-wrap justify-center gap-3 items-center">
             <button id="challenge-btn" class="hidden arcade-btn" style="background: linear-gradient(180deg, #dc2626, #7f1d1d); padding: 10px 16px; font-size: 0.9rem;">RED FLAG: CHALLENGE [C]</button>
+            <button id="fg-btn" class="hidden arcade-btn" style="background: linear-gradient(180deg, #0ea5e9, #075985); padding: 10px 16px; font-size: 0.9rem;">FIELD GOAL [ENTER]</button>
             <button id="timeout-btn" class="arcade-btn" style="background: linear-gradient(180deg, #475569, #1e293b); padding: 10px 16px; font-size: 0.9rem;">TIMEOUT [T]</button>
             <button id="snap-btn" class="arcade-btn" style="background: linear-gradient(180deg, #2563eb, #1d4ed8);">SNAP BALL [SPACE]</button>
         </div>
@@ -1537,7 +1539,45 @@
     }
 
     // =====================================================================================
-    //  TEAM BADGES: original emblems in each team's colors (not the teams' official logos)
+    //  TEAM LOGOS: the teams' own logos, loaded from ESPN's image CDN when the game starts (nothing is
+    //  stored in this repo). Offline, or with LOGOS set to MASCOT, the original mascot badges below are used.
+    // =====================================================================================
+    const LOGO_CODE = { WAS: 'wsh' };
+    let logoStyle = 'TEAM';
+    const teamLogos = {};
+    let logoRefreshTimer = null;
+    function loadTeamLogos() {
+        for (const t of nfl2026Teams) {
+            if (teamLogos[t.abbr]) continue;
+            const img = new Image();
+            img.crossOrigin = 'anonymous';           // The CDN allows it, so the logos can go into canvases
+            img.onload = () => { teamLogos[t.abbr] = img; scheduleLogoRefresh(); };
+            img.src = `https://a.espncdn.com/i/teamlogos/nfl/500/${LOGO_CODE[t.abbr] || t.abbr.toLowerCase()}.png`;
+        }
+    }
+    // Redraw cached badges (menus, scorebug) once logos arrive or the setting changes
+    function scheduleLogoRefresh() {
+        clearTimeout(logoRefreshTimer);
+        logoRefreshTimer = setTimeout(() => {
+            for (const k in badgeCache) delete badgeCache[k];
+            if (typeof hudCache !== 'undefined') hudCache.hl = hudCache.al = '';
+            if (typeof initTeamSelection === 'function' && gameState === 'MENU') { initTeamSelection(); if (typeof renderLobby === 'function') renderLobby(); }
+        }, 200);
+    }
+    function drawTeamLogo(c, team, x, y, r) {
+        const img = logoStyle === 'TEAM' && teamLogos[team.abbr];
+        if (!img) return false;
+        c.save();
+        c.shadowColor = 'rgba(255,255,255,0.35)';    // A soft halo keeps dark logos readable on dark backgrounds
+        c.shadowBlur = Math.max(2, r * 0.14);
+        const s = r * 2.2;
+        c.drawImage(img, x - s / 2, y - s / 2, s, s);
+        c.restore();
+        return true;
+    }
+
+    // =====================================================================================
+    //  TEAM BADGES: original emblems in each team's colors (the fallback for the logos)
     // =====================================================================================
     const BADGE_SHAPES = ['shield', 'circle', 'hex', 'crest'];
     const BADGE_MARKS = ['chevrons', 'rays', 'peaks', 'waves', 'stripes', 'ring', 'diamond'];
@@ -1610,6 +1650,7 @@
     }
     // Draw a team badge centered at (x, y) with radius r on any 2D context
     function drawBadge(c, team, x, y, r) {
+        if (drawTeamLogo(c, team, x, y, r)) return;
         const { shape, mark } = badgeStyle(team);
         c.save();
         c.translate(x, y);
@@ -2399,6 +2440,9 @@
     }
     buildOptions($('opt-qtr'), [[5, '5 MIN'], [8, '8 MIN'], [10, '10 MIN'], [15, '15 MIN (NFL)']],
         () => quarterMinutes, (v) => { quarterMinutes = v; });
+    buildOptions($('opt-logo'), [['TEAM', 'TEAM'], ['MASCOT', 'MASCOT']],
+        () => logoStyle, (v) => { logoStyle = v; scheduleLogoRefresh(); });
+    loadTeamLogos();
     buildOptions($('opt-wx'), [['AUTO', 'REAL'], ['CLEAR', 'CLEAR'], ['RAIN', 'RAIN'], ['SNOW', 'SNOW'], ['WIND', 'WIND']],
         () => weatherSetting, (v) => { weatherSetting = v; });
     buildOptions($('opt-skill'), [[0, 'ROOKIE'], [1, 'PRO'], [2, 'ALL-PRO']],
@@ -2516,6 +2560,7 @@
         if (e.key === ' ') doAction('primary');
         else if (code === 'KeyQ') doAction('switch');
         else if (code === 'KeyT') doAction('timeout');
+        else if (e.key === 'Enter') doAction('fieldGoal');
         else if (code === 'KeyF') doAction('juke');
         else if (code === 'KeyC') doAction('challenge');
         else if (code === 'KeyX') doAction('speed');
@@ -2622,6 +2667,7 @@
 
     snapBtn.addEventListener('click', () => doAction('snap'));
     timeoutBtn.addEventListener('click', () => doAction('timeout'));
+    $('fg-btn').addEventListener('click', () => doAction('fieldGoal'));
     challengeBtn.addEventListener('click', () => doAction('challenge'));
     challengeBtn2.addEventListener('click', () => doAction('challenge'));
     puntBtn.addEventListener('click', () => doAction('punt'));
@@ -2721,6 +2767,9 @@
                 if (s && canChallenge(s)) startReview(s, () => checkFourthDownOrNextPlay());
                 break;
             }
+            case 'fieldGoal':
+                if (onOffense && !aiOffense() && canKickFgNow()) kickFieldGoalNow();
+                break;
             case 'timeout':
                 // Online, each player can only spend their own timeouts; offline, the human's side
                 if (gameState === 'PRE_SNAP') callTimeout(online ? side : (onOffense ? possession : other(possession)));
@@ -3740,6 +3789,7 @@
         if (hurryUp(possession)) {
             if (noHuddleSide !== possession) { noHuddleSide = possession; pbp(possession, `${getOffenseTeam().name} go NO-HUDDLE with ${formatClock(gameClock)} left.`); }
         } else noHuddleSide = '';
+        if (aiOffense() && aiLastSecondFG()) return;
         aiMaybeTimeout();
     }
     let noHuddleSide = '';
@@ -6163,7 +6213,19 @@
         lastPlay = null;
         if (id === 'GO') setupPreSnap();
         else if (id === 'PUNT') setupPunt();
-        else if (id === 'FG') setupFieldGoal(false);
+        else if (id === 'FG') {
+            if (kind === 'FOURTH' && fgUnitRunoff()) {
+                if (timeouts[possession] > 0 && gameClock <= 20) {
+                    timeouts[possession]--;
+                    clockRunning = false;
+                    pbp(possession, `Timeout #${3 - timeouts[possession]} by ${getOffenseTeam().name} to set up the kick.`);
+                } else {
+                    gameClock = Math.max(0, gameClock - fgUnitRunoff());
+                    if (gameClock <= 0) { timeExpired = true; updateHUD(); pbp(possession, 'Time runs out before the field goal unit can get the kick off.'); handleQuarterEnd(() => setupPreSnap()); return; }
+                }
+            }
+            setupFieldGoal(false);
+        }
         else if (id === 'XP') setupFieldGoal(true);
         else if (id === 'TWO') setupTwoPointConversion();
     }
@@ -6184,17 +6246,62 @@
         offerChoice('FOURTH', '4TH DOWN DECISION', `${togo} TO GO FROM THE ${spotText(lineOfScrimmage).toUpperCase()}`, options, () => aiFourthDown(togo, fgd));
     }
 
+    // Field goal on any down: the unit has to hustle on with the clock running late in a half (~8s)
+    const lateInHalf = () => (quarter === 2 || quarter >= 4) && gameClock <= 120;
+    function fgUnitRunoff() { return clockRunning && lateInHalf() ? 8 : 0; }
+    function canKickFgNow() {
+        return gameState === 'PRE_SNAP' && !isTwoPointConversion && !isPAT && !isReturn && down < 4 && fgDistance(lineOfScrimmage) <= 66 && lateInHalf();
+    }
+    function kickFieldGoalNow() {
+        if (!canKickFgNow()) return false;
+        const run = fgUnitRunoff();
+        gameState = 'ANIMATING';
+        if (run) {
+            gameClock = Math.max(0, gameClock - run);
+            if (gameClock <= 0) {
+                timeExpired = true;
+                updateHUD();
+                pbp(possession, 'Time runs out before the field goal unit can get the kick off.');
+                handleQuarterEnd(() => setupPreSnap());
+                return true;
+            }
+        }
+        pbp(possession, `${getOffenseTeam().name} rush the field goal unit on for a ${DOWN_TXT[down - 1].toLowerCase()}-down kick with ${formatClock(gameClock)} left.`);
+        setupFieldGoal(false);
+        return true;
+    }
+    // The CPU kicks on any down when the half is about to run out and three points matter
+    function aiLastSecondFG() {
+        if (!canKickFgNow()) return false;
+        const { fk, range } = kickRange(fgDistance(lineOfScrimmage));
+        if (fk > range + 3) return false;
+        const me = possession === 'HOME' ? scoreHome : scoreAway;
+        const opp = possession === 'HOME' ? scoreAway : scoreHome;
+        const trail = opp - me;
+        if (quarter >= 4 && !(trail >= 0 && trail <= 3)) return false;  // Only when it ties or wins
+        const to = timeouts[possession];
+        const kick = clockRunning ? (gameClock <= (to > 0 ? 24 : 30) && gameClock > 1) : gameClock <= (to > 0 ? 6 : 15);
+        if (!kick) return false;
+        if (clockRunning && to > 0) callTimeout(possession);              // Stop the clock to set up the kick
+        return kickFieldGoalNow();
+    }
+
     // The CPU's 4th-down call, like a modern NFL coach: go for it on short yardage, take the points in range,
     // never punt from inside the opponent's 35, and press when trailing late
+    // How far this kicker can make it from today, in this weather
+    function kickRange(fgd) {
+        const fk = Math.round(fgd - wxKickYards()) + (wxWet() ? 3 : 0);
+        const k = sideTeam(possession).roster.k;
+        const range = 52 + clamp((((k && k.r) || 74) - 74) * 0.25, -3, 4); // A big leg stretches it a little
+        return { fk, range };
+    }
     function aiFourthDown(togo, fgd) {
         const L = lineOfScrimmage;
         const off = possession === 'HOME' ? scoreHome : scoreAway;
         const opp = possession === 'HOME' ? scoreAway : scoreHome;
         const trail = opp - off;
         const late = quarter >= 4 && gameClock < 240;
-        const fk = Math.round(fgd - wxKickYards()) + (wxWet() ? 3 : 0); // Kicking range in this weather
-        const k = sideTeam(possession).roster.k;
-        const range = 52 + clamp((((k && k.r) || 74) - 74) * 0.25, -3, 4); // A big leg stretches it a little
+        const { fk, range } = kickRange(fgd);
         const inRange = fk <= range;
         const canPunt = L < 92;
         // Late and behind: a field goal only when it ties or wins, otherwise keep the ball
@@ -8763,6 +8870,9 @@
         const tSide = online ? mySide : (onOffense ? possession : other(possession));
         const tLeft = Number((net.role === 'guest' ? guestHud : hudState)[tSide === 'HOME' ? 'toH' : 'toA']) || 0;
         timeoutBtn.disabled = tLeft <= 0;
+        // Late in a half, the offense can send the kicker out on any down
+        toggle($('fg-btn'), onOffense && gameMode !== 'CPU' && !(gameMode === '1P' && isDefense) && canKickFgNow());
+        if (canKickFgNow()) setText($('fg-btn'), 'fgb', `FIELD GOAL ${fgDistance(lineOfScrimmage)} YDS [ENTER]`);
         setText(timeoutBtn, 'tob', `TIMEOUT [T] (${tLeft})`);
         if (inGame && gameState === 'PRE_SNAP') renderPlaybookUI();
         else renderPlaybookUI.key = '';
