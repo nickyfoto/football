@@ -1,0 +1,13 @@
+# GitHub Pages (Jekyll) settings for nickyfoto.github.io/football.
+# Keep the Swift Student Challenge drafts and tooling out of the public site.
+exclude:
+  - SwiftStudentChallenge
+  - scripts
+  - node_modules
+  - package.json
+  - package-lock.json
+  - cloudflare.config.ts
+  - README.md
+  - Gemfile
+  - Gemfile.lock
+  - vendor
