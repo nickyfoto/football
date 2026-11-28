@@ -3377,30 +3377,86 @@
         });
     }
 
+    // Clock plays the CPU calls itself (not on the play-call board)
+    const CLOCK_PLAYS = {
+        SPIKE: { id: 'SPIKE', name: 'CLOCK SPIKE', desc: 'Stop the clock', type: 'PASS', form: 'UC', drop: 0, spike: true, routes: ['BLOCK', 'BLOCK', 'BLOCK', 'BLOCK', 'BLOCK'] },
+        KNEEL: { id: 'KNEEL', name: 'VICTORY', desc: 'Take a knee', type: 'RUN', form: 'UC', qbRun: true, kneel: true, handoffAt: 9999, qbLane: 0, routes: ['BLOCK', 'BLOCK', 'BLOCK', 'BLOCK', 'BLOCK'] }
+    };
+    const playById = (id) => OFFENSIVE_PLAYS.find(p => p.id === id) || CLOCK_PLAYS[id];
+    // Two-minute offense: trailing late (earlier when it takes more than one score), any team before the half
+    function hurryUp(side = possession) {
+        if (isTwoPointConversion || side !== possession) return false;
+        const me = side === 'HOME' ? scoreHome : scoreAway;
+        const opp = side === 'HOME' ? scoreAway : scoreHome;
+        const trail = opp - me;
+        if (quarter === 2) return gameClock <= 120 && !(trail < -14 && lineOfScrimmage < 25);
+        if (quarter >= 4) {
+            if (trail > 0) return gameClock <= 120 + 90 * (Math.ceil(trail / 8) - 1);
+            if (trail === 0) return gameClock <= 75;
+        }
+        return false;
+    }
+    // Kneel-downs that end the game: enough clock burns off before the opponent can get the ball back
+    function canKneelOut() {
+        const me = possession === 'HOME' ? scoreHome : scoreAway;
+        const opp = possession === 'HOME' ? scoreAway : scoreHome;
+        if (quarter < 4 || me <= opp || down >= 4) return false;
+        const k = 4 - down;                                               // Kneels left before 4th down
+        const stops = timeouts[other(possession)] + (clockRunning ? 0 : 1);
+        return gameClock <= Math.max(0, k - stops) * 40 + k * 2 - 1;
+    }
+
     // CPU play calling by situation
     function aiPickOffPlay() {
         const togo = firstDownLine - lineOfScrimmage;
+        const L = lineOfScrimmage;
         const off = possession === 'HOME' ? scoreHome : scoreAway;
         const opp = possession === 'HOME' ? scoreAway : scoreHome;
-        const hurry = (quarter === 2 || quarter >= 4) && gameClock < 150 && off <= opp;
+        const hurry = hurryUp(possession);
         const DEEP = ['VERTS', 'WHEEL', 'DAGGER', 'PA'];
         const pick = (ids) => {
             // Bad weather: the deep shots mostly come off the call sheet
             if (wxNoDeep() && ids.some(x => !DEEP.includes(x)) && Math.random() < 0.7) ids = ids.filter(x => !DEEP.includes(x));
             const id = ids[Math.floor(Math.random() * ids.length)];
-            return OFFENSIVE_PLAYS.find(p => p.id === id);
+            return playById(id);
         };
         const qbInfo = sideTeam(possession).roster.qb;
         const mobile = qbInfo && (SPEED_OVERRIDE[qbInfo.nm] || 8.5) >= 9.3;
         if (isTwoPointConversion) return pick(['SLANTS', 'MESH', 'IZ', 'STICK', 'SMASH', 'POWER', 'QUICKOUT', 'SHALLOW']);
-        if (hurry) return pick(['SLANTS', 'CURLS', 'VERTS', 'MESH', 'SMASH', 'YCROSS', 'QUICKOUT', 'FLOOD', 'DAGGER', 'LEVELS', 'STICK']);
-        if (quarter >= 4 && off > opp && gameClock < 300) return pick(['IZ', 'IZ', 'TOSS', 'POWER', 'POWER', 'OZ', 'COUNTER', 'DIVE', 'SLANTS']);
-        if (togo <= 1 && lineOfScrimmage >= 50 && Math.random() < 0.35) return pick(['SNEAK']);           // QB sneak for a yard
+        // Victory formation, at the end of the game or to run out a half from deep in your own end
+        if (canKneelOut()) return CLOCK_PLAYS.KNEEL;
+        if (quarter === 2 && gameClock <= 30 && L < 30 && off >= opp - 3 && down < 4) return CLOCK_PLAYS.KNEEL;
+        // Out of timeouts with the clock running: spike it (on 3rd down only to set up a last-second field goal)
+        const fgRange = fgDistance(L) - wxKickYards() <= 54;
+        if (hurry && clockRunning && timeouts[possession] === 0 && gameClock > 3 && gameClock <= 70
+            && (down < 3 || (down === 3 && fgRange && gameClock <= 20 && opp - off <= 3))) return CLOCK_PLAYS.SPIKE;
+        // No-huddle: quick throws to the sideline, a run only to convert a yard (or a draw while there's time)
+        if (hurry) {
+            if (togo <= 1 && Math.random() < 0.4) return pick(['SNEAK', 'IZ', 'DIVE']);
+            if (gameClock > 70 && Math.random() < 0.07) return pick(['DRAW']);
+            return pick(['QUICKOUT', 'QUICKOUT', 'FLOOD', 'FLOOD', 'SMASH', 'CURLS', 'STICK', 'SLANTS', 'MESH', 'DAGGER', 'LEVELS', 'YCROSS', ...(L < 70 ? ['VERTS', 'VERTS'] : [])]);
+        }
+        const milk = quarter >= 4 && off > opp && gameClock < 300;
+        // 3rd and 4th down: throw to the sticks, run mostly on short yardage (NFL rates by distance)
+        if (down >= 3) {
+            let runP = togo <= 1 ? 0.65 : (togo <= 2 ? 0.5 : (togo <= 3 ? 0.33 : (togo <= 6 ? 0.13 : 0.06)));
+            if (milk) runP += togo <= 6 ? 0.25 : 0.12;                   // Protecting a lead: keep the clock moving
+            runP += wxRunBias() * 0.5;
+            if (Math.random() < runP) {
+                if (togo <= 1 && L >= 30 && Math.random() < 0.4) return pick(['SNEAK']);
+                return togo <= 2 ? pick(['IZ', 'IZ', 'POWER', 'DIVE', 'COUNTER', ...(mobile ? ['QBDRAW'] : [])])
+                    : pick(['DRAW', 'DRAW', 'IZ', 'OZ', ...(mobile ? ['QBDRAW', 'QBDRAW'] : [])]);
+            }
+            if (togo <= 3) return pick(['SLANTS', 'STICK', 'QUICKOUT', 'MESH', 'SHALLOW', 'BUBBLE', 'PA', 'BOOT']);
+            if (togo <= 6) return pick(['SLANTS', 'STICK', 'CURLS', 'MESH', 'SMASH', 'YCROSS', 'LEVELS', 'SHALLOW', 'FLOOD', 'QUICKOUT']);
+            return pick(['CURLS', 'MESH', 'SMASH', 'YCROSS', 'DAGGER', 'FLOOD', 'LEVELS', 'VERTS', 'WHEEL', 'SCREEN', 'SHALLOW']);
+        }
+        if (milk) return pick(['IZ', 'IZ', 'TOSS', 'POWER', 'POWER', 'OZ', 'COUNTER', 'DIVE', 'SLANTS']);
+        if (togo <= 1 && L >= 50 && Math.random() < 0.35) return pick(['SNEAK']);           // QB sneak for a yard
         if (togo <= 2) return pick(['IZ', 'IZ', 'POWER', 'POWER', 'DIVE', 'COUNTER', 'TOSS', 'SLANTS', 'PA', 'BOOT', 'STICK']);
-        if (down >= 3 && togo >= 7) return pick(['CURLS', 'MESH', 'SLANTS', 'VERTS', 'SMASH', 'YCROSS', 'SCREEN', 'DRAW', 'DAGGER', 'FLOOD', 'LEVELS', 'SHALLOW', 'WHEEL', ...(mobile ? ['QBDRAW'] : [])]);
-        if (lineOfScrimmage >= 88) return pick(['SLANTS', 'MESH', 'IZ', 'TOSS', 'SMASH', 'POWER', 'STICK', 'QUICKOUT', 'BOOT', 'DIVE', 'OZ', ...(mobile ? ['QBDRAW'] : [])]);
-        // Base mix on early downs: about half runs, so the whole game lands near the NFL's ~43% runs
-        if (Math.random() < (down === 1 ? 0.55 : 0.47) + wxRunBias()) return pick(['IZ', 'IZ', 'TOSS', 'POWER', 'OZ', 'OZ', 'COUNTER', 'DIVE', 'DRAW', ...(mobile ? ['QBDRAW'] : ['IZ'])]);
+        if (L >= 88) return pick(['SLANTS', 'MESH', 'IZ', 'TOSS', 'SMASH', 'POWER', 'STICK', 'QUICKOUT', 'BOOT', 'DIVE', 'OZ', ...(mobile ? ['QBDRAW'] : [])]);
+        // Base mix on early downs: a little over half runs, so the whole game lands near the NFL's ~43% runs
+        if (Math.random() < (down === 1 ? 0.57 : 0.5) + wxRunBias()) return pick(['IZ', 'IZ', 'TOSS', 'POWER', 'OZ', 'OZ', 'COUNTER', 'DIVE', 'DRAW', ...(mobile ? ['QBDRAW'] : ['IZ'])]);
         return pick(['SLANTS', 'CURLS', 'PA', 'MESH', 'VERTS', 'SMASH', 'SCREEN', 'YCROSS', 'LEVELS', 'DAGGER', 'STICK', 'SHALLOW', 'FLOOD', 'BOOT', 'BUBBLE', 'QUICKOUT', 'WHEEL', 'PA', 'BOOT']);
     }
     // The defensive coordinator: down and distance, field and clock, plus what this offense has shown today
@@ -3681,8 +3737,12 @@
         camFocusY = lineOfScrimmage - 3; // Formation mid-screen, below the play-call panel
         camCut++;
         updateHUD();
+        if (hurryUp(possession)) {
+            if (noHuddleSide !== possession) { noHuddleSide = possession; pbp(possession, `${getOffenseTeam().name} go NO-HUDDLE with ${formatClock(gameClock)} left.`); }
+        } else noHuddleSide = '';
         aiMaybeTimeout();
     }
+    let noHuddleSide = '';
 
     function callTimeout(side) {
         if (gameState !== 'PRE_SNAP' || timeouts[side] <= 0) return;
@@ -3697,16 +3757,26 @@
         emit({ k: 'msg', text: `TIMEOUT ${sideTeam(side).abbr}`, color: sideTeam(side).p, delay: 1100, subtitle: `${timeouts[side]} LEFT` });
     }
 
-    // The CPU saves clock when trailing late
+    // CPU clock management after an in-bounds play. With the ball: go no-huddle and save timeouts for the last
+    // minute (spikes once they're gone). Without it: a trailing defense stops the clock to get the ball back.
     function aiMaybeTimeout() {
         if ((gameMode !== '1P' && gameMode !== 'CPU') || !clockRunning) return;
-        const late = (quarter === 2 && gameClock <= 110) || (quarter >= 4 && gameClock <= 150);
-        if (!late) return;
+        if (selectedOffPlay && (selectedOffPlay.kneel || selectedOffPlay.spike)) return;
         const sides = gameMode === 'CPU' ? ['HOME', 'AWAY'] : ['AWAY'];
         for (const s of sides) {
+            if (timeouts[s] <= 0) continue;
             const me = s === 'HOME' ? scoreHome : scoreAway;
             const opp = s === 'HOME' ? scoreAway : scoreHome;
-            if (me < opp || (quarter === 2 && possession === s)) { callTimeout(s); return; }
+            const trail = opp - me;
+            let call = false;
+            if (possession === s) {
+                if (quarter === 2) call = gameClock <= 70 && lineOfScrimmage >= 35;
+                else if (quarter >= 4 && trail >= 0) call = gameClock <= (trail > 8 ? 75 : 50);
+            } else if (quarter >= 4 && trail > 0) {
+                // Only while getting the ball back can still matter
+                call = gameClock <= 150 && !(trail > 16 && gameClock < 60);
+            }
+            if (call) { callTimeout(s); return; }
         }
     }
 
@@ -3715,8 +3785,8 @@
         if (!clockRunning) return 0;
         const off = possession === 'HOME' ? scoreHome : scoreAway;
         const opp = possession === 'HOME' ? scoreAway : scoreHome;
-        const lateHalf = (quarter === 2 && gameClock <= 120) || (quarter >= 4 && gameClock <= 180);
-        if (lateHalf && off <= opp) return 16;                         // Hurry-up offense (no huddle)
+        if (selectedOffPlay && selectedOffPlay.spike) return 7;        // Line up and spike it
+        if (hurryUp(possession)) return 16;                            // Hurry-up offense (no huddle)
         if (quarter >= 4 && off > opp && gameClock <= 300) return 40;   // Milking the clock: snap it with a second left
         // NFL pace: ~38s snap to snap with the clock running (huddle, line up, snap with a few seconds left)
         return 38;
@@ -4017,6 +4087,14 @@
         let straight = 14;
         // Behind the line a back stays north-south; in the open field he can cut harder
         const spread = (!isReturn && c.y < lineOfScrimmage + 1) ? 0.3 : 0.46;
+        // Clock: +1 hunting the sideline (trailing late, once past the line), -1 staying in bounds (milking a lead)
+        let clockMode = 0;
+        if (!isReturn && c.y > lineOfScrimmage + 1) {
+            const me = possession === 'HOME' ? scoreHome : scoreAway;
+            const opp = possession === 'HOME' ? scoreAway : scoreHome;
+            if (hurryUp(possession) && gameClock > 2) clockMode = 1;
+            else if (quarter >= 4 && me > opp && gameClock <= 300) clockMode = -1;
+        }
         for (let k = -7; k <= 7; k++) {
             const ang = Math.PI / 2 + k * (Math.PI * spread) / 7;
             const dx = Math.cos(ang);
@@ -4034,8 +4112,14 @@
                 clear = Math.min(clear, eff);
             }
             const fx2 = c.x + dx * 6;
-            const side = (fx2 < 2 || fx2 > W - 2) ? 6 : 0;
-            let score = Math.min(clear, 5) * 1.2 + dy * 4.5 - side - Math.abs(k) * 0.05;
+            let side = (fx2 < 2 || fx2 > W - 2) ? 6 : 0;
+            let clockBias = 0;
+            if (clockMode) {
+                const sx = c.x < MID ? -1 : 1;
+                if (clockMode > 0) { side = 0; clockBias = dx * sx * 2.2; }   // Two-minute drill: get out of bounds
+                else clockBias = -dx * sx * 0.8;                              // Protecting a lead: stay in bounds
+            }
+            let score = Math.min(clear, 5) * 1.2 + dy * 4.5 - side + clockBias - Math.abs(k) * 0.05;
             if (pref) score += 1.6 * (dx * pref.x + dy * pref.y);
             if (score > bestScore) { bestScore = score; best = { dx, dy, clear }; }
             if (k === 0) straight = clear;
@@ -4653,7 +4737,7 @@
         ball.vz = 0.05;
         fx('fail');
         const passer = qb ? qb.nm : 'QB';
-        let text = r ? `${passer} pass incomplete intended for ${r.nm}` : `${passer} throws it away`;
+        let text = r ? `${passer} pass incomplete intended for ${r.nm}` : (msg === 'SPIKED' ? `${passer} spikes it to stop the clock` : `${passer} throws it away`);
         if (defender && msg === 'PASS BROKEN UP!') text += `, broken up by ${defender.nm}`;
         if (msg === 'DROPPED!') text += ' (dropped)';
         pbp(possession, text + '.');
@@ -4752,6 +4836,22 @@
         const humanOff = humanOffense();
         const inpO = humanOff ? offenseInput() : null;
 
+        // --- Clock plays ---
+        if (!isReturn && play.spike && player === qb && ball.state === 'held' && playFrame === 10) {
+            stats[possession].att++;
+            const P = leader(qb, possession);
+            if (P) P.att++;
+            playLog.type = 'pass';
+            playLog.thrown = true;
+            ball.x = qb.x; ball.y = qb.y + 0.6; ball.z = 0.2; ball.vx = 0; ball.vy = 0;
+            player = null;
+            handleIncompletePass('SPIKED', null, null);
+            return;
+        }
+        if (!isReturn && play.kneel && player === qb && ball.state === 'held') {
+            seek(qb, qb.x, lineOfScrimmage - 1.5, 0.3);
+            if (playFrame === 22) { playLog.type = 'run'; playLog.kneel = true; qb.y = Math.min(qb.y, lineOfScrimmage - 1); endScrimmagePlay(null, false); return; }
+        }
         // --- Run play mesh / pitch ---
         if (!isReturn && play.qbRun && player === qb && ball.state === 'held' && !qb.scramble && playFrame >= (play.handoffAt || 4)) {
             qb.scramble = true;
@@ -4772,7 +4872,7 @@
             if (e.jukeCd > 0) e.jukeCd--;
             if (e.elusive > 0) e.elusive--;
             if (e === player && ball.state === 'held') {
-                if (e === qb && !hasCrossedLOS && !isReturn && play.type === 'RUN' && !qb.scramble) { if (play.qbRun) qbAutoDrop(e); else seek(e, ballSpotX + 0.2, qb.dropY - 0.3, 0.4); }
+                if (e === qb && !hasCrossedLOS && !isReturn && play.type === 'RUN' && !qb.scramble) { if (play.kneel) { /* taking a knee */ } else if (play.qbRun) qbAutoDrop(e); else seek(e, ballSpotX + 0.2, qb.dropY - 0.3, 0.4); }
                 else if (humanOff) humanCarrier(e, inpO);
                 else if (e === qb && !hasCrossedLOS && !isReturn) aiQB(e);
                 else aiCarrier(e);
@@ -5866,7 +5966,7 @@
         let spot = clamp(c.y, -9.9, 109.9);
         const late = (quarter === 2 && gameClock <= 120) || (quarter >= 4 && gameClock <= 300);
         clockRunning = !(oob && late);
-        const by = tackler ? ` (${tackler.nm})` : ' (out of bounds)';
+        const by = tackler ? ` (${tackler.nm})` : (playLog && playLog.kneel ? '' : ' (out of bounds)');
 
         // --- Returns: new drive at the spot ---
         if (isReturn) {
@@ -5932,12 +6032,12 @@
         } else {
             stats[side].rushYds += gain;
             if (L) { L.rush += gain; L.rushAtt++; }
-            pbp(side, `${c.nm} ${playLog && playLog.type === 'scramble' ? 'scrambles' : 'runs'} for ${yardsText(gain)}${by}.`);
+            pbp(side, playLog && playLog.kneel ? `${c.nm} takes a knee.` : `${c.nm} ${playLog && playLog.type === 'scramble' ? 'scrambles' : 'runs'} for ${yardsText(gain)}${by}.`);
         }
 
         lineOfScrimmage = clamp(spot, 0.5, 99.5);
         ballSpotX = clamp(c.x, HASH_L, HASH_R);
-        let big = oob ? 'OUT OF BOUNDS' : (sack ? 'SACKED!' : (playLog && playLog.slid ? 'QB SLIDES' : (gain >= 20 ? 'BIG GAIN!' : 'TACKLED')));
+        let big = oob ? 'OUT OF BOUNDS' : (playLog && playLog.kneel ? 'KNEEL DOWN' : sack ? 'SACKED!' : (playLog && playLog.slid ? 'QB SLIDES' : (gain >= 20 ? 'BIG GAIN!' : 'TACKLED')));
         let color = sack ? '#ef4444' : '#fbbf24';
         if (sack) sfx.roar(0.13);
         noteTendency(side, playLog && playLog.type === 'run' ? 'run' : 'pass', gain, playLog && playLog.caughtAt !== undefined ? playLog.caughtAt - (prePlay ? prePlay.los : lineOfScrimmage) : 0, c === qb && !!(qb && qb.scramble));
@@ -8152,7 +8252,7 @@
         isTwoPointConversion = !!a.two;
         camCut = a.cc;
         camFocusY = a.cf === null ? null : lerpPos(a.cf, b && b.cf, t);
-        selectedOffPlay = OFFENSIVE_PLAYS.find(p => p.id === a.op) || selectedOffPlay;
+        selectedOffPlay = playById(a.op) || selectedOffPlay;
         selectedDefPlay = DEFENSIVE_PLAYS.find(p => p.id === a.dp) || selectedDefPlay;
         defCalled = !!a.dc;
         preSnapFrames = Number(a.psf) || 0;
