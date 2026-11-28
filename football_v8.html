@@ -100,6 +100,8 @@
         }
         .sb-logo { width: 28px; height: 28px; flex: none; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.6)); }
         .badge-img { display: block; margin: 0 auto 2px; }
+        .card-logo { width: 64px; height: 64px; margin-bottom: 4px; }
+        @media (max-width: 640px) { .card-logo { width: 46px; height: 46px; } }
         .chip-badge { width: 20px; height: 20px; vertical-align: middle; }
         .sb-abbr { font-size: clamp(0.9rem, 2vw, 1.15rem); font-weight: 700; letter-spacing: 1px; text-shadow: 1px 1px 0 rgba(0,0,0,0.6); }
         .sb-score { font-size: clamp(1.15rem, 2.8vw, 1.6rem); font-weight: 700; margin-left: auto; min-width: 1.6em; text-align: right; text-shadow: 1px 1px 0 rgba(0,0,0,0.6); }
@@ -2380,7 +2382,7 @@
                         <div class="text-[10px] text-white/90 mt-0.5">QB ${team.roster.qb.nm} ${team.roster.qb.r || ''} • WR ${team.roster.wr1.nm} ${team.roster.wr1.r || ''}</div>
                         <div class="pick-badge hidden"></div>
                     `;
-                    card.prepend(badgeImg(team, 34));
+                    card.prepend(badgeImg(team, 64, 'badge-img card-logo'));
                     card.addEventListener('click', () => onTeamCardClick(idx));
                     row.appendChild(card);
                     teamCards[idx] = card;
